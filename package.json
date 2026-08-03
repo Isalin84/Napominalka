@@ -36,6 +36,7 @@
     ],
     "mac": {
       "target": ["dmg", "zip"],
+      "artifactName": "Napominalka-${version}-${arch}.${ext}",
       "category": "public.app-category.healthcare-fitness"
     },
     "win": {

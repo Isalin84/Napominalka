@@ -60,6 +60,10 @@ jobs:
     needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
+      - name: Replace previous assets for this tag
+        run: gh release delete "$GITHUB_REF_NAME" --yes --repo "$GITHUB_REPOSITORY" || true
+        env:
+          GH_TOKEN: ${{ github.token }}
       - uses: actions/download-artifact@v4
         with:
           path: release-assets

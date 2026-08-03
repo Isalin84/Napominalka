@@ -10,8 +10,8 @@
 
 | Система | Что скачать |
 | --- | --- |
-| macOS с Apple Silicon | `Напоминалка-…-arm64.dmg` |
-| macOS с Intel | `Напоминалка-….dmg` |
+| macOS с Apple Silicon | `Napominalka-…-arm64.dmg` |
+| macOS с Intel | `Napominalka-…-x64.dmg` |
 | Windows | `Napominalka-…-setup.exe` |
 | Windows без установки | `Napominalka-…-portable.exe` |
 
