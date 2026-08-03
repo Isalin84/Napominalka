@@ -26,6 +26,7 @@
 from __future__ import annotations
 
 import argparse
+from itertools import combinations, permutations
 from pathlib import Path
 
 import numpy as np
@@ -54,17 +55,34 @@ DISPLAY_COUNTS = {
     "review": 18,
 }
 ILLUSTRATED_KEYFRAMES = 8
+# Спокойные состояния идут вдвое медленнее прежнего. При восьми позах за
+# 1,1 секунды питомец менял позу каждые 135 мс и выглядел дёрганым: позы
+# нарисованы независимо, соседние отличаются сильно, и на такой скорости
+# это читается как тряска, а не как дыхание.
 CYCLE_MS = {
-    "idle": 1200,
-    "waving": 800,
-    "jumping": 880,
-    "waiting": 1080,
-    "review": 1100,
+    "idle": 2600,
+    "waving": 1100,
+    "jumping": 900,
+    "waiting": 2400,
+    "review": 2400,
 }
 # Позы нарисованы независимо друг от друга, поэтому фигура гуляет в размере
 # от кадра к кадру (у Макса в покое 177-198 px при росте около 190). В цикле
 # это читается как пульсация. Приводим всех к одному росту и ставим на общий пол.
 STANDING_STATES = ("idle", "waiting", "review", "waving")
+
+# Восемь поз на состояние нарисованы независимо, и не все складываются в цикл.
+# У совы в ожидании кадры 1-3 это сильные развороты корпуса, а остальные
+# фронтальные: подряд они читаются не как дыхание, а как размахивание крылом.
+# Для спокойных состояний отбираем подмножество поз, которое идёт ровно,
+# и раскладываем его по кругу. У взмаха и прыжка своя последовательность,
+# их не трогаем.
+#   состояние: (сколько поз оставить минимум, какой скачок считать допустимым)
+CURATION = {
+    "idle": (6, 18),
+    "waiting": (4, 18),
+    "review": (4, 18),
+}
 TARGET_FIGURE_HEIGHT = 193
 FLOOR_Y = 203
 SAFE_MARGIN = 3
@@ -194,6 +212,39 @@ def place_figure(frame: Image.Image, figure_height: int, lift: int) -> Image.Ima
     return cell
 
 
+def curate_cycle(frames: list[Image.Image], min_count: int, max_step: float) -> tuple[list[int], float]:
+    """Выбрать из нарисованных поз те, что складываются в ровный цикл.
+
+    Перебираем подмножества от большего к меньшему и все порядки внутри них,
+    оценивая самый резкий переход. Как только нашлось подмножество, где ни один
+    переход не превышает порог, берём его: чем больше поз осталось, тем богаче
+    движение. Если порог недостижим, возвращаем лучшее из найденного.
+    """
+    data = [np.asarray(frame, dtype=np.float32) for frame in frames]
+    size = len(frames)
+    distance = [[float(np.abs(data[i] - data[j]).mean()) for j in range(size)] for i in range(size)]
+
+    fallback: tuple[float, float, list[int]] | None = None
+    for count in range(size, min_count - 1, -1):
+        best: tuple[float, float, list[int]] | None = None
+        for subset in combinations(range(size), count):
+            head, *rest = subset
+            for tail in permutations(rest):
+                order = [head, *tail]
+                steps = [distance[order[i]][order[(i + 1) % count]] for i in range(count)]
+                candidate = (max(steps), sum(steps), order)
+                if best is None or candidate[:2] < best[:2]:
+                    best = candidate
+        if best is None:
+            continue
+        if fallback is None or best[:2] < fallback[:2]:
+            fallback = best
+        if best[0] <= max_step:
+            return best[2], best[0]
+    assert fallback is not None
+    return fallback[2], fallback[0]
+
+
 def load_pet_frames(frames_dir: Path) -> dict[str, list[Image.Image]]:
     """Прочитать все нарисованные позы питомца и привести их к общему масштабу."""
     raw: dict[str, list[Image.Image]] = {}
@@ -231,6 +282,13 @@ def load_pet_frames(frames_dir: Path) -> dict[str, list[Image.Image]]:
                             for frame, lift in zip(raw[name], JUMP_LIFT)]
         else:
             placed[name] = [place_figure(frame, figure_height, 0) for frame in raw[name]]
+
+    for name, (min_count, max_step) in CURATION.items():
+        order, worst = curate_cycle(placed[name], min_count, max_step)
+        dropped = sorted(set(range(len(placed[name]))) - set(order))
+        placed[name] = [placed[name][index] for index in order]
+        note = f"выброшены {dropped}" if dropped else "все позы оставлены"
+        print(f"      {name:8} {len(order)} поз, порядок {order}, худший переход {worst:.1f}, {note}")
     return placed
 
 
@@ -333,7 +391,7 @@ def main() -> None:
     )
     parser.add_argument("--previews", action="store_true", help="обновить GIF-превью итоговых циклов")
     args = parser.parse_args()
-    mode = args.mode or ("sharp" if args.illustrated_root is not None else "morph")
+    mode = args.mode or "morph"
 
     total = 0
     for source in args.sources:

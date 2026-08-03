@@ -48,11 +48,18 @@ console.log('\n— атлас: кадры и ряды в пределах сет
 for (const [name, a] of Object.entries(PET_ANIMATIONS)) {
   eq(a.frames <= 18 && a.row <= 4, true, `${name} ряд ${a.row}, ${a.frames} кадр.`);
 }
-console.log('\n— тайминг: кадры идут через равные промежутки —');
+console.log('\n— тайминг: кадр держится от 50 до 160 мс —');
 for (const [name, a] of Object.entries(PET_ANIMATIONS)) {
   const perFrame = Math.round(a.cycleMs / a.frames);
-  eq(perFrame >= 50 && perFrame <= 75, true, `${name} ${perFrame} мс на кадр`);
+  eq(perFrame >= 50 && perFrame <= 160, true, `${name} ${perFrame} мс на кадр`);
 }
+
+// Спокойные состояния должны идти заметно медленнее жестов, иначе питомец
+// в углу экрана дёргается. Именно на этом попап и попался.
+console.log('\n— спокойные состояния медленнее жестов —');
+const calm = Math.min(PET_ANIMATIONS.idle.cycleMs, PET_ANIMATIONS.waiting.cycleMs, PET_ANIMATIONS.review.cycleMs);
+const brisk = Math.max(PET_ANIMATIONS.waving.cycleMs, PET_ANIMATIONS.jumping.cycleMs);
+eq(calm >= brisk * 2, true, `спокойные ${calm} мс, жесты ${brisk} мс`);
 
 console.log(fails ? `\nПРОВАЛОВ: ${fails}` : '\nвсё сходится');
 process.exit(fails ? 1 : 0);
