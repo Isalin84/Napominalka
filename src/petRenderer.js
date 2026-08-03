@@ -55,14 +55,12 @@ const ATLAS_ROWS = 5;
 // Кадры внутри цикла идут через равные промежутки. Раньше длительности были
 // разными (55 мс против 160 мс), и движение спотыкалось на длинных кадрах.
 // Темп должен совпадать с CYCLE_MS в scripts/pack_atlas.py.
-// Спокойные состояния идут медленно: позы нарисованы независимо, соседние
-// отличаются сильно, и на быстрой прокрутке это читается как тряска.
 export const PET_ANIMATIONS = {
-  idle: { row: 0, frames: 18, cycleMs: 2600 },
-  waving: { row: 1, frames: 12, cycleMs: 1100 },
-  jumping: { row: 2, frames: 15, cycleMs: 900 },
-  waiting: { row: 3, frames: 18, cycleMs: 2400 },
-  review: { row: 4, frames: 18, cycleMs: 2400 }
+  idle: { row: 0, frames: 18, cycleMs: 1200 },
+  waving: { row: 1, frames: 12, cycleMs: 800 },
+  jumping: { row: 2, frames: 15, cycleMs: 880 },
+  waiting: { row: 3, frames: 18, cycleMs: 1080 },
+  review: { row: 4, frames: 18, cycleMs: 1100 }
 };
 
 const animationState = new WeakMap();
