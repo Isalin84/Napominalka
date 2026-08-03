@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Собрать атлас питомца из мастера с настоящими ключевыми кадрами.
+"""Собрать экранный атлас питомца из нарисованных ключевых кадров.
 
 Мастер (assets/pets/runs/<питомец>/final/spritesheet-extended.png) - это сетка
 8 на 11, где каждый кадр нарисован. Приложение показывает пять анимаций, поэтому
 в атлас едут только их ряды: остальное было бы прозрачными пикселями в сборке.
 
-Между ключевыми кадрами достраиваются промежуточные, иначе движение выглядит
-рывками: у покоя всего 6 нарисованных поз на 1,1 секунды, это меньше 6 кадров
-в секунду.
+Если рядом с питомцем есть ``illustrated-frames/<state>/00.png..07.png``, эти
+восемь отдельно нарисованных 3D-поз становятся источником анимации. Между ними
+достраивается только недостающее до экранного темпа число кадров. Все восемь
+иллюстраций попадают в итоговый цикл без изменений.
+
+Без ``--illustrated-root`` сохраняется прежний режим сборки из 8x11 мастера.
 
 Два способа достроить:
 
@@ -41,6 +44,33 @@ KEPT_ROWS = [
     ("waiting", 6, 6),
     ("review", 8, 6),
 ]
+
+# Экранный формат оставляем прежним, чтобы не менять renderer и CSS.
+DISPLAY_COUNTS = {
+    "idle": 18,
+    "waving": 12,
+    "jumping": 15,
+    "waiting": 18,
+    "review": 18,
+}
+ILLUSTRATED_KEYFRAMES = 8
+CYCLE_MS = {
+    "idle": 1200,
+    "waving": 800,
+    "jumping": 880,
+    "waiting": 1080,
+    "review": 1100,
+}
+# Позы нарисованы независимо друг от друга, поэтому фигура гуляет в размере
+# от кадра к кадру (у Макса в покое 177-198 px при росте около 190). В цикле
+# это читается как пульсация. Приводим всех к одному росту и ставим на общий пол.
+STANDING_STATES = ("idle", "waiting", "review", "waving")
+TARGET_FIGURE_HEIGHT = 193
+FLOOR_Y = 203
+SAFE_MARGIN = 3
+# В прыжке питомец чуть меньше: иначе дуге некуда подниматься внутри ячейки.
+JUMP_FIGURE_SCALE = 0.93
+JUMP_LIFT = [0, 7, 16, 23, 26, 20, 10, 3]
 
 
 def alpha_geometry(frame: Image.Image) -> tuple[float, float, float]:
@@ -85,12 +115,20 @@ def blend(first: Image.Image, second: Image.Image, weight: float) -> Image.Image
     return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "RGBA")
 
 
-def interpolate(first: Image.Image, second: Image.Image, weight: float, mode: str) -> Image.Image:
+def interpolate(first: Image.Image, second: Image.Image, weight: float, mode: str,
+                allow_scale: bool = True) -> Image.Image:
+    """Достроить кадр между двумя позами.
+
+    ``allow_scale`` нужен для нарисованных поз: они уже приведены к общему росту,
+    и подгонка масштаба по площади только вернула бы пульсацию. У широко
+    расставленных крыльев площадь больше при том же росте, и старая формула
+    честно, но вредно раздувала кадр.
+    """
     first_x, first_y, first_area = alpha_geometry(first)
     second_x, second_y, second_area = alpha_geometry(second)
     target_x = first_x + (second_x - first_x) * weight
     target_y = first_y + (second_y - first_y) * weight
-    ratio = np.sqrt(second_area / first_area)
+    ratio = np.sqrt(second_area / first_area) if allow_scale else 1.0
 
     scale_first = float(np.clip(1.0 + (ratio - 1.0) * weight, 0.94, 1.06))
     warped_first = shift_scale(first, target_x, target_y, scale_first)
@@ -118,22 +156,163 @@ def row_frames(atlas: Image.Image, row: int, count: int, factor: int, mode: str)
     return frames
 
 
-def build(source: Path, output: Path, factor: int, mode: str, quality: int) -> tuple[int, int, int]:
+def foot_center_x(frame: Image.Image, bbox: tuple[int, int, int, int]) -> float:
+    """Горизонтальный центр опоры.
+
+    Центр рамки для выравнивания не годится: стоит питомцу отвести крыло или
+    наклонить голову, и рамка уезжает вбок вместе с ним. Лапы же остаются на
+    месте, поэтому считаем центр массы по нижней пятой части фигуры.
+    """
+    alpha = np.asarray(frame, dtype=np.float32)[..., 3]
+    top = bbox[3] - max(1, round((bbox[3] - bbox[1]) * 0.22))
+    band = alpha[top:bbox[3], bbox[0]:bbox[2]]
+    mass = float(band.sum())
+    if mass <= 0:
+        return (bbox[0] + bbox[2]) / 2
+    xs = np.arange(bbox[0], bbox[2], dtype=np.float32)
+    return float((band.sum(axis=0) * xs).sum() / mass)
+
+
+def place_figure(frame: Image.Image, figure_height: int, lift: int) -> Image.Image:
+    """Привести фигуру к общему росту и поставить на общий пол."""
+    bbox = frame.getbbox()
+    if bbox is None:
+        raise ValueError("пустой кадр")
+    scale = figure_height / (bbox[3] - bbox[1])
+    crop = frame.crop(bbox)
+    width = max(1, round(crop.width * scale))
+    height = max(1, round(crop.height * scale))
+    resized = crop.resize((width, height), Image.Resampling.LANCZOS)
+
+    anchor = (foot_center_x(frame, bbox) - bbox[0]) * scale
+    left = round(CELL_WIDTH / 2 - anchor)
+    left = max(SAFE_MARGIN, min(left, CELL_WIDTH - SAFE_MARGIN - width))
+    top = max(SAFE_MARGIN, FLOOR_Y - lift - height)
+
+    cell = Image.new("RGBA", (CELL_WIDTH, CELL_HEIGHT), (0, 0, 0, 0))
+    cell.alpha_composite(resized, (left, top))
+    return cell
+
+
+def load_pet_frames(frames_dir: Path) -> dict[str, list[Image.Image]]:
+    """Прочитать все нарисованные позы питомца и привести их к общему масштабу."""
+    raw: dict[str, list[Image.Image]] = {}
+    for name, _, _ in KEPT_ROWS:
+        state_dir = frames_dir / name
+        frames: list[Image.Image] = []
+        for index in range(ILLUSTRATED_KEYFRAMES):
+            path = state_dir / f"{index:02d}.png"
+            if not path.is_file():
+                raise ValueError(f"нет нарисованного кадра {path}")
+            frame = Image.open(path).convert("RGBA")
+            if frame.size != (CELL_WIDTH, CELL_HEIGHT):
+                raise ValueError(f"{path}: ожидался размер {(CELL_WIDTH, CELL_HEIGHT)}, получен {frame.size}")
+            if not frame.getbbox():
+                raise ValueError(f"пустой нарисованный кадр {path}")
+            frames.append(frame)
+        raw[name] = frames
+
+    # Рост задан заранее, но у широких поз (расправленные крылья) после подгонки
+    # может не хватить ширины ячейки. Тогда общий рост уменьшается для всех сразу.
+    widest = 0.0
+    for name in STANDING_STATES:
+        for frame in raw[name]:
+            bbox = frame.getbbox()
+            widest = max(widest, (bbox[2] - bbox[0]) * TARGET_FIGURE_HEIGHT / (bbox[3] - bbox[1]))
+    figure_height = TARGET_FIGURE_HEIGHT
+    if widest > CELL_WIDTH - 2 * SAFE_MARGIN:
+        figure_height = round(TARGET_FIGURE_HEIGHT * (CELL_WIDTH - 2 * SAFE_MARGIN) / widest)
+
+    placed: dict[str, list[Image.Image]] = {}
+    for name, _, _ in KEPT_ROWS:
+        if name == "jumping":
+            jump_height = round(figure_height * JUMP_FIGURE_SCALE)
+            placed[name] = [place_figure(frame, jump_height, lift)
+                            for frame, lift in zip(raw[name], JUMP_LIFT)]
+        else:
+            placed[name] = [place_figure(frame, figure_height, 0) for frame in raw[name]]
+    return placed
+
+
+def resample_illustrated_cycle(keys: list[Image.Image], target_count: int, mode: str) -> list[Image.Image]:
+    """Равномерно распределить все нарисованные позы по экранному циклу."""
+    if target_count < len(keys):
+        raise ValueError("экранный цикл не может быть короче числа нарисованных кадров")
+
+    # Округление позиций распределяет интервалы длиной 1–3 кадра по всему циклу,
+    # а не складывает погрешность в последнем переходе к первому кадру.
+    anchors = [(index * target_count + len(keys) // 2) // len(keys) for index in range(len(keys))]
+    frames: list[Image.Image | None] = [None] * target_count
+    for index, key in enumerate(keys):
+        start = anchors[index]
+        end = anchors[(index + 1) % len(keys)]
+        if index == len(keys) - 1:
+            end += target_count
+        steps = end - start
+        frames[start % target_count] = key
+        following = keys[(index + 1) % len(keys)]
+        for step in range(1, steps):
+            frames[(start + step) % target_count] = interpolate(
+                key, following, step / steps, mode, allow_scale=False
+            )
+
+    if any(frame is None for frame in frames):
+        raise ValueError("не удалось заполнить экранный цикл")
+    return [frame for frame in frames if frame is not None]
+
+
+def save_previews(rows: list[tuple[str, list[Image.Image]]], preview_dir: Path) -> None:
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    for state, frames in rows:
+        duration = round(CYCLE_MS[state] / len(frames))
+        frames[0].save(
+            preview_dir / f"{state}-smooth.gif",
+            save_all=True,
+            append_images=frames[1:],
+            duration=duration,
+            loop=0,
+            disposal=2,
+            transparency=0,
+        )
+
+
+def build(
+    source: Path,
+    output: Path,
+    factor: int,
+    mode: str,
+    quality: int,
+    illustrated_frames_dir: Path | None,
+    preview_dir: Path | None,
+) -> tuple[int, int, int]:
     atlas = Image.open(source).convert("RGBA")
     expected = (SOURCE_COLUMNS * CELL_WIDTH, SOURCE_ROWS * CELL_HEIGHT)
     if atlas.size != expected:
         raise ValueError(f"{source}: ожидался размер {expected}, получен {atlas.size}")
 
-    rows = [row_frames(atlas, row, count, factor, mode) for _, row, count in KEPT_ROWS]
-    columns = max(len(frames) for frames in rows)
-    packed = Image.new("RGBA", (columns * CELL_WIDTH, len(rows) * CELL_HEIGHT))
-    for row_index, frames in enumerate(rows):
+    if illustrated_frames_dir is None:
+        named_rows = [
+            (name, row_frames(atlas, row, count, factor, mode))
+            for name, row, count in KEPT_ROWS
+        ]
+    else:
+        pet_frames = load_pet_frames(illustrated_frames_dir)
+        named_rows = [
+            (name, resample_illustrated_cycle(pet_frames[name], DISPLAY_COUNTS[name], mode))
+            for name, _, _ in KEPT_ROWS
+        ]
+
+    columns = max(len(frames) for _, frames in named_rows)
+    packed = Image.new("RGBA", (columns * CELL_WIDTH, len(named_rows) * CELL_HEIGHT))
+    for row_index, (_, frames) in enumerate(named_rows):
         for column, frame in enumerate(frames):
             packed.paste(frame, (column * CELL_WIDTH, row_index * CELL_HEIGHT))
 
     output.parent.mkdir(parents=True, exist_ok=True)
     packed.save(output, "WEBP", quality=quality, method=6, exact=True)
-    return columns, len(rows), output.stat().st_size
+    if preview_dir is not None:
+        save_previews(named_rows, preview_dir)
+    return columns, len(named_rows), output.stat().st_size
 
 
 def main() -> None:
@@ -141,20 +320,48 @@ def main() -> None:
     parser.add_argument("sources", nargs="+", type=Path, help="мастера spritesheet-extended.png")
     parser.add_argument("--out", type=Path, required=True, help="куда класть <питомец>/spritesheet.webp")
     parser.add_argument("--factor", type=int, default=3, help="кадров на один ключевой (1 = без промежуточных)")
-    parser.add_argument("--mode", choices=["sharp", "morph"], default="morph")
+    parser.add_argument(
+        "--mode",
+        choices=["sharp", "morph"],
+        help="по умолчанию sharp для нарисованных кадров, morph для старого мастера",
+    )
     parser.add_argument("--quality", type=int, default=88)
+    parser.add_argument(
+        "--illustrated-root",
+        type=Path,
+        help="корень assets/pets с <питомец>/illustrated-frames",
+    )
+    parser.add_argument("--previews", action="store_true", help="обновить GIF-превью итоговых циклов")
     args = parser.parse_args()
+    mode = args.mode or ("sharp" if args.illustrated_root is not None else "morph")
 
     total = 0
     for source in args.sources:
         name = source.parent.parent.name
         output = args.out / name / "spritesheet.webp"
-        columns, rows, size = build(source, output, args.factor, args.mode, args.quality)
+        illustrated_frames_dir = None
+        if args.illustrated_root is not None:
+            illustrated_frames_dir = args.illustrated_root / name / "illustrated-frames"
+        preview_dir = args.out / name / "previews" if args.previews else None
+        columns, rows, size = build(
+            source,
+            output,
+            args.factor,
+            mode,
+            args.quality,
+            illustrated_frames_dir,
+            preview_dir,
+        )
         total += size
         print(f"  {name:10} {columns:2} x {rows}  {size / 1024:6.0f} КБ")
 
-    counts = {name: count * args.factor for name, _, count in KEPT_ROWS}
-    print(f"\nрежим {args.mode}, множитель {args.factor}, итого {total / 1024:.0f} КБ")
+    counts = (
+        DISPLAY_COUNTS
+        if args.illustrated_root is not None
+        else {name: count * args.factor for name, _, count in KEPT_ROWS}
+    )
+    source_label = "8 нарисованных поз" if args.illustrated_root is not None else f"множитель {args.factor}"
+    print(f"\nрежим {mode}, {source_label}, итого {total / 1024:.0f} КБ")
     print("кадров в анимации:", ", ".join(f"{k} {v}" for k, v in counts.items()))
     print("\nне забыть синхронно поправить:")
     print(f"  src/petRenderer.js  ATLAS_COLUMNS = {max(counts.values())}, ATLAS_ROWS = {len(KEPT_ROWS)}")
