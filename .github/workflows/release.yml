@@ -69,8 +69,11 @@ jobs:
         with:
           path: release-assets
           merge-multiple: true
+      - name: Отрезать v от имени тега
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
-          name: Напоминалка ${{ github.ref_name }}
+          name: Напоминалка ${{ steps.version.outputs.value }}
           body_path: ${{ github.workspace }}/RELEASE_NOTES.md
           files: release-assets/*
