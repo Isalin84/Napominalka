@@ -19,13 +19,15 @@
     "dist:win:portable:arm64": "electron-builder --config electron-builder.portable.json --win --arm64 --publish never"
   },
   "devDependencies": {
-    "electron": "^37.2.0",
-    "electron-builder": "^26.0.12"
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "ru.bestpracticeai.napominalka",
     "productName": "Напоминалка",
     "icon": "build/icon.png",
+    "electronLanguages": ["ru", "en-US"],
+    "afterPack": "scripts/after-pack.cjs",
     "files": [
       "main.cjs",
       "preload.cjs",
@@ -37,12 +39,20 @@
       "package.json"
     ],
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "artifactName": "Napominalka-${version}-${arch}.${ext}",
-      "category": "public.app-category.healthcare-fitness"
+      "category": "public.app-category.healthcare-fitness",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
     },
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "artifactName": "Napominalka-${version}-${arch}-setup.${ext}"
     }
   }

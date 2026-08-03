@@ -2,6 +2,8 @@
   "appId": "ru.bestpracticeai.napominalka",
   "productName": "Напоминалка",
   "icon": "build/icon.png",
+  "electronLanguages": ["ru", "en-US"],
+  "afterPack": "scripts/after-pack.cjs",
   "files": [
     "main.cjs",
     "preload.cjs",

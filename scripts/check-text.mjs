@@ -44,9 +44,14 @@ for (const petId of ['winnie', 'max', 'sovushka', 'belochka']) {
 eq(reminderText({ type: 'water', petId: 'sovushka' }).title, 'Пора выпить воды', 'вода');
 eq(reminderText({ type: 'custom', petId: 'max', title: 'Проветрить' }).title, 'Проветрить', 'своё');
 
-console.log('\n— атлас: кадров в анимации не больше 12 —');
+console.log('\n— атлас: кадры и ряды в пределах сетки 18x5 —');
 for (const [name, a] of Object.entries(PET_ANIMATIONS)) {
-  eq(a.durations.length <= 12 && a.row <= 4, true, `${name} ряд ${a.row}, ${a.durations.length} кадр.`);
+  eq(a.frames <= 18 && a.row <= 4, true, `${name} ряд ${a.row}, ${a.frames} кадр.`);
+}
+console.log('\n— тайминг: кадры идут через равные промежутки —');
+for (const [name, a] of Object.entries(PET_ANIMATIONS)) {
+  const perFrame = Math.round(a.cycleMs / a.frames);
+  eq(perFrame >= 50 && perFrame <= 75, true, `${name} ${perFrame} мс на кадр`);
 }
 
 console.log(fails ? `\nПРОВАЛОВ: ${fails}` : '\nвсё сходится');

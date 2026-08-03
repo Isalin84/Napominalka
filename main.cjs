@@ -246,12 +246,12 @@ function rememberPopupPosition() {
 function createPopupWindow(payload) {
   if (!popupWindow) {
     popupWindow = new BrowserWindow({
-      width: 430,
-      height: 224,
-      minWidth: 430,
-      minHeight: 224,
-      maxWidth: 430,
-      maxHeight: 224,
+      width: 420,
+      height: 200,
+      minWidth: 420,
+      minHeight: 200,
+      maxWidth: 420,
+      maxHeight: 200,
       transparent: true,
       frame: false,
       resizable: false,
@@ -268,7 +268,9 @@ function createPopupWindow(payload) {
     });
     popupWindow.setAlwaysOnTop(true, 'floating');
     if (process.platform === 'darwin') {
-      popupWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      // skipTransformProcessType обязателен: без него Electron вызывает DockHide()
+      // и приложение пропадает из Dock после первого же напоминания.
+      popupWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
     }
     popupWindow.loadFile(path.join(__dirname, 'src', 'popup.html'));
     popupWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

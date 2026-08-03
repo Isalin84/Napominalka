@@ -47,22 +47,19 @@ export function pet(petId) {
   return PETS[petId] || PETS.winnie;
 }
 
-const smoothDurations = (durations) => durations.flatMap((duration) => {
-  const firstHalf = Math.round(duration / 2);
-  return [firstHalf, duration - firstHalf];
-});
-
 // Атлас содержит только те ряды, которые приложение действительно показывает.
 // Порядок рядов задан в scripts/pack_atlas.py и должен совпадать с ним.
-const ATLAS_COLUMNS = 12;
+const ATLAS_COLUMNS = 18;
 const ATLAS_ROWS = 5;
 
+// Кадры внутри цикла идут через равные промежутки. Раньше длительности были
+// разными (55 мс против 160 мс), и движение спотыкалось на длинных кадрах.
 export const PET_ANIMATIONS = {
-  idle: { row: 0, durations: smoothDurations([280, 110, 110, 140, 140, 320]) },
-  waving: { row: 1, durations: smoothDurations([140, 140, 140, 280]) },
-  jumping: { row: 2, durations: smoothDurations([140, 140, 140, 140, 280]) },
-  waiting: { row: 3, durations: smoothDurations([150, 150, 150, 150, 150, 260]) },
-  review: { row: 4, durations: smoothDurations([150, 150, 150, 150, 150, 280]) }
+  idle: { row: 0, frames: 18, cycleMs: 1200 },
+  waving: { row: 1, frames: 12, cycleMs: 800 },
+  jumping: { row: 2, frames: 15, cycleMs: 880 },
+  waiting: { row: 3, frames: 18, cycleMs: 1080 },
+  review: { row: 4, frames: 18, cycleMs: 1100 }
 };
 
 const animationState = new WeakMap();
@@ -93,15 +90,8 @@ function animationFrame(element, now, reducedMotion) {
 
   let frame = 0;
   if (!reducedMotion) {
-    const cycle = animation.durations.reduce((sum, duration) => sum + duration, 0);
-    let elapsed = (now - record.startedAt) % cycle;
-    for (let index = 0; index < animation.durations.length; index += 1) {
-      if (elapsed < animation.durations[index]) {
-        frame = index;
-        break;
-      }
-      elapsed -= animation.durations[index];
-    }
+    const elapsed = (now - record.startedAt) % animation.cycleMs;
+    frame = Math.min(animation.frames - 1, Math.floor((elapsed / animation.cycleMs) * animation.frames));
   }
 
   // Кадр не сменился — не трогаем стиль, иначе браузер пересчитывает его 60 раз в секунду.

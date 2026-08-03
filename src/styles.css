@@ -55,8 +55,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .sidebar-pet-card::after { content: ""; position: absolute; width: 106px; height: 106px; border-radius: 50%; background: rgba(235, 169, 124, .2); right: -26px; top: -35px; }
 .sidebar-pet-card .pet-mini-row { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; }
 .sidebar-pet-card .pet-mini-art { width: 53px; height: 57px; flex: none; }
-/* Сетка атласа: 12 колонок x 5 рядов. Совпадает с ATLAS_COLUMNS/ATLAS_ROWS в petRenderer.js. */
-.pet-sprite { width: 100%; height: 100%; display: block; background-image: var(--pet-atlas); background-repeat: no-repeat; background-size: 1200% 500%; background-color: transparent; image-rendering: auto; transform: translateZ(0); will-change: background-position; }
+/* Сетка атласа: 18 колонок x 5 рядов. Совпадает с ATLAS_COLUMNS/ATLAS_ROWS в petRenderer.js. */
+.pet-sprite { width: 100%; height: 100%; display: block; background-image: var(--pet-atlas); background-repeat: no-repeat; background-size: 1800% 500%; background-color: transparent; image-rendering: auto; transform: translateZ(0); will-change: background-position; }
 .sidebar-pet-card .pet-mini-name { font-size: 13px; font-weight: 700; }
 .sidebar-pet-card .pet-mini-type { margin-top: 4px; font-size: 10px; color: rgba(247,244,236,.6); }
 .sidebar-pet-card .pet-mini-caption { position: relative; z-index: 1; display: flex; gap: 5px; align-items: center; margin-top: 11px; color: rgba(247,244,236,.65); font-size: 10px; }
