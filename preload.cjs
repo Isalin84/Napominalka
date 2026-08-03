@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
   saveState: (state) => ipcRenderer.invoke('app:save-state', state),
   testReminder: (key) => ipcRenderer.invoke('app:test-reminder', key),
   completePopup: (payload) => ipcRenderer.send('popup:complete', payload),
+  snoozePopup: (payload) => ipcRenderer.send('popup:snooze', payload),
   openSettings: () => ipcRenderer.send('popup:open-settings'),
   openDeveloperSite: () => ipcRenderer.send('app:open-developer-site'),
   windowAction: (action) => ipcRenderer.send('window:action', action),

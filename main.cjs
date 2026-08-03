@@ -1,23 +1,22 @@
-const { app, BrowserWindow, ipcMain, screen, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 let mainWindow;
 let popupWindow;
+let tray;
 let state;
 let scheduler;
 let popupMoveSaveTimer;
+let popupAutoSnoozeTimer;
+let quitting = false;
 
 const APP_NAME = 'Напоминалка';
 const DEVELOPER_URL = 'https://bestpracticeai.ru/';
-app.setName(APP_NAME);
+const TICK_MS = 15000;
+const POPUP_AUTO_SNOOZE_MS = 5 * 60 * 1000;
 
-const PETS = {
-  winnie: { name: 'Винни', species: 'той-пудель', bark: 'Гав!' },
-  max: { name: 'Макс', species: 'котёнок', bark: 'Мр-р' },
-  sovushka: { name: 'Совушка', species: 'сова', bark: 'Ух-уух' },
-  belochka: { name: 'Белочка', species: 'белочка', bark: 'Щёлк-щёлк' }
-};
+app.setName(APP_NAME);
 
 function createDefaultState() {
   const now = Date.now();
@@ -26,18 +25,24 @@ function createDefaultState() {
     petId: 'winnie',
     soundEnabled: true,
     volume: 0.65,
+    autostart: false,
+    snoozeMinutes: 10,
     popupPosition: null,
     quietHours: { enabled: true, from: '22:00', to: '07:00' },
     reminders: {
       water: {
         enabled: true,
         everyMinutes: 60,
+        frequency: 'interval',
+        time: '09:00',
         days: [1, 2, 3, 4, 5],
         nextAt: now + 60 * 60 * 1000
       },
       movement: {
         enabled: true,
         everyMinutes: 120,
+        frequency: 'interval',
+        time: '09:00',
         days: [1, 2, 3, 4, 5],
         exercise: 'Приседания',
         amount: '12 раз',
@@ -107,7 +112,11 @@ function persistState() {
 function ensureNextAt() {
   const now = Date.now();
   for (const reminder of Object.values(state.reminders)) {
-    if (!reminder.nextAt || reminder.nextAt < now - 24 * 60 * 60 * 1000) {
+    if (reminder.frequency === 'time') {
+      if (!reminder.nextAt || reminder.nextAt <= now) {
+        reminder.nextAt = nextTimeOccurrence(reminder.time, reminder.days, now);
+      }
+    } else if (!reminder.nextAt || reminder.nextAt < now - 24 * 60 * 60 * 1000) {
       reminder.nextAt = now + reminder.everyMinutes * 60 * 1000;
     }
   }
@@ -119,6 +128,15 @@ function ensureNextAt() {
         ? nextTimeOccurrence(reminder.time, reminder.days, now)
         : now + reminder.everyMinutes * 60 * 1000;
     }
+  }
+}
+
+function applyAutostart() {
+  if (!app.isPackaged) return;
+  try {
+    app.setLoginItemSettings({ openAtLogin: Boolean(state.autostart), openAsHidden: true });
+  } catch {
+    // На некоторых системах автозапуск недоступен — это не повод падать.
   }
 }
 
@@ -140,11 +158,63 @@ function createMainWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://bestpracticeai.ru/')) shell.openExternal(url);
+    if (url.startsWith(DEVELOPER_URL)) shell.openExternal(url);
     return { action: 'deny' };
   });
+  mainWindow.webContents.on('will-navigate', (event) => event.preventDefault());
   mainWindow.once('ready-to-show', () => mainWindow.show());
+
+  // Закрытие окна прячет приложение в трей: напоминания должны продолжать работать.
+  mainWindow.on('close', (event) => {
+    if (quitting || !tray) return;
+    event.preventDefault();
+    mainWindow.hide();
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+function showMainWindow(view) {
+  if (!mainWindow || mainWindow.isDestroyed()) createMainWindow();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+  if (view) mainWindow.webContents.send('app:navigate', view);
+}
+
+function trayImage() {
+  const file = path.join(__dirname, 'assets', 'icons', 'tray.png');
+  const image = nativeImage.createFromPath(file);
+  if (image.isEmpty()) return null;
+  const resized = image.resize({ width: 18, height: 18 });
+  if (process.platform === 'darwin') resized.setTemplateImage(true);
+  return resized;
+}
+
+function createTray() {
+  const image = trayImage();
+  if (!image) return;
+  try {
+    tray = new Tray(image);
+  } catch {
+    return;
+  }
+  tray.setToolTip(APP_NAME);
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Открыть Напоминалку', click: () => showMainWindow('overview') },
+    { type: 'separator' },
+    { label: 'Напомнить о воде сейчас', click: () => showReminder('water') },
+    { label: 'Напомнить о разминке сейчас', click: () => showReminder('movement') },
+    { type: 'separator' },
+    {
+      label: 'Выход',
+      click: () => {
+        quitting = true;
+        app.quit();
+      }
+    }
+  ]));
+  tray.on('click', () => showMainWindow());
+  tray.on('double-click', () => showMainWindow());
 }
 
 function positionPopup() {
@@ -201,13 +271,12 @@ function createPopupWindow(payload) {
       popupWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     }
     popupWindow.loadFile(path.join(__dirname, 'src', 'popup.html'));
-    popupWindow.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith('https://bestpracticeai.ru/')) shell.openExternal(url);
-      return { action: 'deny' };
-    });
+    popupWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    popupWindow.webContents.on('will-navigate', (event) => event.preventDefault());
     popupWindow.on('move', rememberPopupPosition);
     popupWindow.on('closed', () => {
       clearTimeout(popupMoveSaveTimer);
+      clearTimeout(popupAutoSnoozeTimer);
       popupWindow = null;
     });
   }
@@ -216,8 +285,10 @@ function createPopupWindow(payload) {
     if (!popupWindow || popupWindow.isDestroyed()) return;
     popupWindow.webContents.send('popup:reminder', payload);
     positionPopup();
+    // showInactive намеренно: напоминание не должно выдёргивать курсор из работы.
     popupWindow.showInactive();
-    popupWindow.focus();
+    clearTimeout(popupAutoSnoozeTimer);
+    popupAutoSnoozeTimer = setTimeout(() => snoozeReminder(payload), POPUP_AUTO_SNOOZE_MS);
   };
 
   if (popupWindow.webContents.isLoading()) {
@@ -257,70 +328,74 @@ function nextTimeOccurrence(time, days = [1, 2, 3, 4, 5], from = Date.now()) {
   return from + 24 * 60 * 60 * 1000;
 }
 
-function buildPayload(key, override = {}) {
-  const pet = PETS[state.petId] || PETS.winnie;
-  const movement = state.reminders.movement;
-  const base = key === 'movement'
-    ? {
-        title: 'Разомнёмся?',
-        eyebrow: 'Маленькая пауза',
-        message: `${movement.exercise || 'Небольшая разминка'} — ${movement.amount || 'пара повторений'}. ${pet.name} уже готов поддержать.`,
-        action: 'Разминка выполнена',
-        type: 'movement'
-      }
-    : key === 'water'
-      ? {
-          title: 'Пора попить воды',
-          eyebrow: 'Тело скажет спасибо',
-          message: 'Несколько глотков сейчас — и концентрация вернётся мягче.',
-          action: 'Выпил воду',
-          type: 'water'
-        }
-      : {
-          title: override.title || 'Время для себя',
-          eyebrow: 'Личная пауза',
-          message: override.message || 'Небольшой перерыв тоже считается заботой о себе.',
-          action: 'Готово',
-          type: 'custom'
-        };
+function findReminder(key) {
+  if (state.reminders[key]) return state.reminders[key];
+  return state.customReminders.find((item) => item.id === key);
+}
 
+function rescheduleAfter(key, from) {
+  const reminder = findReminder(key);
+  if (!reminder) return;
+  reminder.nextAt = reminder.frequency === 'time'
+    ? nextTimeOccurrence(reminder.time, reminder.days, from + 60000)
+    : from + (reminder.everyMinutes || 60) * 60 * 1000;
+}
+
+// Главный процесс отправляет только данные. Текст собирает интерфейс —
+// там же, где лежат имена питомцев.
+function buildPayload(key) {
+  const reminder = findReminder(key);
+  const type = key === 'water' || key === 'movement' ? key : 'custom';
   return {
     id: `${key}-${Date.now()}`,
     key,
+    type,
     petId: state.petId,
-    petName: pet.name,
-    soundHint: pet.bark,
     soundEnabled: state.soundEnabled,
     volume: state.volume,
+    snoozeMinutes: state.snoozeMinutes || 10,
     createdAt: new Date().toISOString(),
-    ...base,
-    ...override
+    exercise: type === 'movement' ? state.reminders.movement.exercise : undefined,
+    amount: type === 'movement' ? state.reminders.movement.amount : undefined,
+    title: type === 'custom' ? reminder?.title : undefined,
+    message: type === 'custom' ? reminder?.message : undefined
   };
 }
 
-function showReminder(key, override = {}) {
-  const payload = buildPayload(key, override);
+function showReminder(key) {
+  if (!findReminder(key)) return;
+  const payload = buildPayload(key);
   createPopupWindow(payload);
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app:reminder-shown', payload);
+}
+
+function closePopup() {
+  clearTimeout(popupAutoSnoozeTimer);
+  if (popupWindow && !popupWindow.isDestroyed()) popupWindow.hide();
+}
+
+function snoozeReminder(payload) {
+  const minutes = Number(state.snoozeMinutes) || 10;
+  const reminder = findReminder(payload?.key);
+  if (reminder) {
+    reminder.nextAt = Date.now() + minutes * 60 * 1000;
+    persistState();
+  }
+  closePopup();
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app:state-updated', state);
 }
 
 function recordCompletion(payload) {
   state.history.push({
     id: payload.id,
     key: payload.key,
-    title: payload.title,
-    action: payload.action,
+    type: payload.type,
+    title: payload.type === 'custom' ? payload.title : undefined,
     petId: state.petId,
     completedAt: new Date().toISOString()
   });
   state.history = state.history.slice(-50);
-
-  const reminder = state.reminders[payload.key] || state.customReminders.find(item => item.id === payload.key);
-  if (reminder) {
-    reminder.nextAt = reminder.frequency === 'time'
-      ? nextTimeOccurrence(reminder.time, reminder.days, Date.now() + 60000)
-      : Date.now() + (reminder.everyMinutes || 60) * 60 * 1000;
-  }
+  rescheduleAfter(payload.key, Date.now());
   persistState();
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app:state-updated', state);
 }
@@ -331,55 +406,44 @@ function tickScheduler() {
   const candidates = [
     ['water', state.reminders.water],
     ['movement', state.reminders.movement],
-    ...state.customReminders.map(reminder => [reminder.id, reminder])
+    ...state.customReminders.map((reminder) => [reminder.id, reminder])
   ];
 
   for (const [key, reminder] of candidates) {
     if (!reminder.enabled) continue;
     if (reminder.frequency !== 'time' && !activeToday(reminder)) continue;
     if (reminder.nextAt && reminder.nextAt <= now) {
-      if (key.startsWith('custom-')) {
-        showReminder('custom', { key, title: reminder.title, message: reminder.message });
-      } else {
-        showReminder(key);
-      }
-      reminder.nextAt = reminder.frequency === 'time'
-        ? nextTimeOccurrence(reminder.time, reminder.days, now + 60000)
-        : now + (reminder.everyMinutes || 60) * 60 * 1000;
+      showReminder(key);
+      rescheduleAfter(key, now);
       persistState();
       break;
     }
   }
 }
 
-function closePopup() {
-  if (popupWindow && !popupWindow.isDestroyed()) popupWindow.hide();
-}
-
 function registerIpc() {
   ipcMain.handle('app:get-state', () => state);
   ipcMain.handle('app:save-state', (_event, nextState) => {
     const popupPosition = state.popupPosition;
+    const wasAutostart = state.autostart;
     state = mergeState({ ...nextState, popupPosition });
     ensureNextAt();
     persistState();
+    if (state.autostart !== wasAutostart) applyAutostart();
     return state;
   });
   ipcMain.handle('app:test-reminder', (_event, key) => {
-    showReminder(key === 'custom' ? 'custom' : key);
+    showReminder(typeof key === 'string' ? key : 'water');
     return true;
   });
   ipcMain.on('popup:complete', (_event, payload) => {
     recordCompletion(payload);
     closePopup();
   });
+  ipcMain.on('popup:snooze', (_event, payload) => snoozeReminder(payload));
   ipcMain.on('popup:open-settings', () => {
     closePopup();
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-      mainWindow.focus();
-      mainWindow.webContents.send('app:navigate', 'reminders');
-    }
+    showMainWindow('reminders');
   });
   ipcMain.on('app:open-developer-site', () => shell.openExternal(DEVELOPER_URL));
   ipcMain.on('window:action', (_event, action) => {
@@ -389,18 +453,30 @@ function registerIpc() {
   });
 }
 
-app.whenReady().then(() => {
-  loadState();
-  registerIpc();
-  createMainWindow();
-  scheduler = setInterval(tickScheduler, 15000);
-});
+const singleInstance = app.requestSingleInstanceLock();
+if (!singleInstance) {
+  app.quit();
+} else {
+  app.on('second-instance', () => showMainWindow());
 
-app.on('window-all-closed', () => {
+  app.whenReady().then(() => {
+    loadState();
+    registerIpc();
+    createTray();
+    createMainWindow();
+    applyAutostart();
+    scheduler = setInterval(tickScheduler, TICK_MS);
+  });
+}
+
+app.on('before-quit', () => {
+  quitting = true;
   if (scheduler) clearInterval(scheduler);
-  if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('activate', () => {
-  if (!mainWindow) createMainWindow();
+// Приложение живёт в трее: закрытое окно не должно останавливать напоминания.
+app.on('window-all-closed', () => {
+  if (!tray) app.quit();
 });
+
+app.on('activate', () => showMainWindow());
