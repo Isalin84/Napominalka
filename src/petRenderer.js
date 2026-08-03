@@ -5,21 +5,17 @@ export const PETS = {
     short: 'Пудель',
     accent: '#ef7b4f',
     soft: '#fff0e8',
-    ink: '#5d2a1d',
-    greeting: 'Твой тёплый напарник для коротких пауз.',
-    sound: 'Гав-гав',
+    greeting: 'Гавкает, когда пора отойти от экрана.',
     soundFile: '../assets/sounds/winnie-bark.mp3',
     atlas: '../assets/pets/winnie/spritesheet.webp'
   },
   max: {
     name: 'Макс',
-    species: 'черно-белый котёнок',
+    species: 'чёрно-белый котёнок',
     short: 'Котёнок',
     accent: '#6b7f96',
     soft: '#edf2f8',
-    ink: '#202a36',
-    greeting: 'Любопытный наблюдатель, который знает цену паузе.',
-    sound: 'Мр-р-р',
+    greeting: 'Мурлычет и ждёт, пока встанешь из-за стола.',
     soundFile: '../assets/sounds/max-purr.mp3',
     atlas: '../assets/pets/max/spritesheet.webp'
   },
@@ -29,9 +25,7 @@ export const PETS = {
     short: 'Сова',
     accent: '#8b6ad8',
     soft: '#f1ecff',
-    ink: '#3e2e6d',
-    greeting: 'Спокойный ночной стратег для ритма без перегруза.',
-    sound: 'Ух-уух',
+    greeting: 'Ухает тихо, чтобы не сбить с мысли.',
     soundFile: '../assets/sounds/sovushka-hoot.mp3',
     atlas: '../assets/pets/sovushka/spritesheet.webp'
   },
@@ -41,9 +35,7 @@ export const PETS = {
     short: 'Белочка',
     accent: '#d76d3f',
     soft: '#fff0e1',
-    ink: '#572d20',
-    greeting: 'Энергичная хранительница маленьких полезных привычек.',
-    sound: 'Щёлк-щёлк',
+    greeting: 'Щёлкает орехом, когда пора размяться.',
     soundFile: '../assets/sounds/belochka-nut-crack.mp3',
     atlas: '../assets/pets/belochka/spritesheet.webp'
   }
@@ -51,46 +43,36 @@ export const PETS = {
 
 export const PET_ORDER = ['winnie', 'max', 'sovushka', 'belochka'];
 
-export const REMINDER_CATALOG = {
-  water: {
-    label: 'Вода',
-    description: 'Мягко напоминает сделать несколько глотков.',
-    icon: 'water',
-    color: '#59a9d5'
-  },
-  movement: {
-    label: 'Разминка',
-    description: 'Подсказывает встать, потянуться или сделать упражнение.',
-    icon: 'movement',
-    color: '#df8b55'
-  }
-};
+export function pet(petId) {
+  return PETS[petId] || PETS.winnie;
+}
 
 const smoothDurations = (durations) => durations.flatMap((duration) => {
   const firstHalf = Math.round(duration / 2);
   return [firstHalf, duration - firstHalf];
 });
 
+// Атлас содержит только те ряды, которые приложение действительно показывает.
+// Порядок рядов задан в scripts/pack_atlas.py и должен совпадать с ним.
+const ATLAS_COLUMNS = 12;
+const ATLAS_ROWS = 5;
+
 export const PET_ANIMATIONS = {
   idle: { row: 0, durations: smoothDurations([280, 110, 110, 140, 140, 320]) },
-  'running-right': { row: 1, durations: smoothDurations([120, 120, 120, 120, 120, 120, 120, 220]) },
-  'running-left': { row: 2, durations: smoothDurations([120, 120, 120, 120, 120, 120, 120, 220]) },
-  waving: { row: 3, durations: smoothDurations([140, 140, 140, 280]) },
-  jumping: { row: 4, durations: smoothDurations([140, 140, 140, 140, 280]) },
-  failed: { row: 5, durations: smoothDurations([140, 140, 140, 140, 140, 140, 140, 240]) },
-  waiting: { row: 6, durations: smoothDurations([150, 150, 150, 150, 150, 260]) },
-  running: { row: 7, durations: smoothDurations([120, 120, 120, 120, 120, 220]) },
-  review: { row: 8, durations: smoothDurations([150, 150, 150, 150, 150, 280]) }
+  waving: { row: 1, durations: smoothDurations([140, 140, 140, 280]) },
+  jumping: { row: 2, durations: smoothDurations([140, 140, 140, 140, 280]) },
+  waiting: { row: 3, durations: smoothDurations([150, 150, 150, 150, 150, 260]) },
+  review: { row: 4, durations: smoothDurations([150, 150, 150, 150, 150, 280]) }
 };
 
 const animationState = new WeakMap();
 let animationLoopStarted = false;
 
 export function petSprite(petId = 'winnie', options = {}) {
-  const pet = PETS[petId] || PETS.winnie;
+  const current = pet(petId);
   const state = PET_ANIMATIONS[options.motion] ? options.motion : 'idle';
-  const label = `${pet.name}, ${pet.species}`;
-  return `<div class="pet-sprite pet-${petId}" data-pet-state="${state}" role="img" aria-label="${label}" style="--pet-atlas:url('${pet.atlas}')"></div>`;
+  const label = `${current.name}, ${current.species}`;
+  return `<div class="pet-sprite pet-${petId}" data-pet-state="${state}" role="img" aria-label="${label}" style="--pet-atlas:url('${current.atlas}')"></div>`;
 }
 
 export function setPetAnimation(target, state) {
@@ -105,7 +87,7 @@ function animationFrame(element, now, reducedMotion) {
   const animation = PET_ANIMATIONS[stateName];
   let record = animationState.get(element);
   if (!record || record.stateName !== stateName) {
-    record = { stateName, startedAt: now };
+    record = { stateName, startedAt: now, frame: -1 };
     animationState.set(element, record);
   }
 
@@ -122,7 +104,12 @@ function animationFrame(element, now, reducedMotion) {
     }
   }
 
-  element.style.backgroundPosition = `${(frame / 15) * 100}% ${(animation.row / 10) * 100}%`;
+  // Кадр не сменился — не трогаем стиль, иначе браузер пересчитывает его 60 раз в секунду.
+  if (frame === record.frame) return;
+  record.frame = frame;
+  const x = (frame / (ATLAS_COLUMNS - 1)) * 100;
+  const y = (animation.row / (ATLAS_ROWS - 1)) * 100;
+  element.style.backgroundPosition = `${x}% ${y}%`;
 }
 
 export function startPetAnimations() {
@@ -155,18 +142,73 @@ export function icon(name, size = 18) {
     minimize: '<path d="M5 12h14"/>',
     checkCircle: '<circle cx="12" cy="12" r="9"/><path d="m8 12 2.6 2.6L16.5 9"/>',
     bell: '<path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/>',
+    snooze: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5M9 2h6"/>',
     trash: '<path d="M5 7h14M10 11v6M14 11v6M9 7V4h6v3M7 7l1 13h8l1-13"/>'
   };
   return `<svg class="ui-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.spark}</svg>`;
 }
 
-export function formatInterval(minutes) {
-  if (minutes < 60) return `каждые ${minutes} мин`;
-  const hours = minutes / 60;
-  return `каждые ${hours === 1 ? '1 час' : `${hours} ч`}`;
+// Русские числительные: 1 минута, 2 минуты, 5 минут.
+export function plural(count, one, few, many) {
+  const value = Math.abs(Math.round(count));
+  const withinHundred = value % 100;
+  const lastDigit = value % 10;
+  if (withinHundred >= 11 && withinHundred <= 14) return many;
+  if (lastDigit === 1) return one;
+  if (lastDigit >= 2 && lastDigit <= 4) return few;
+  return many;
 }
 
-export function formatDateTime(iso) {
-  if (!iso) return 'ещё не было';
-  return new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+export function pluralize(count, one, few, many) {
+  return `${count} ${plural(count, one, few, many)}`;
+}
+
+export function formatInterval(minutes) {
+  const value = Number(minutes) || 60;
+  if (value < 60) return `каждые ${pluralize(value, 'минуту', 'минуты', 'минут')}`;
+  if (value === 60) return 'каждый час';
+  if (value === 90) return 'каждые полтора часа';
+  const hours = value / 60;
+  if (Number.isInteger(hours)) return `каждые ${pluralize(hours, 'час', 'часа', 'часов')}`;
+  return `каждые ${String(hours).replace('.', ',')} часа`;
+}
+
+export function formatNextTime(nextAt) {
+  if (!nextAt) return 'когда включишь';
+  const diff = Math.max(0, nextAt - Date.now());
+  const minutes = Math.round(diff / 60000);
+  if (minutes < 1) return 'меньше минуты';
+  if (minutes < 60) return `через ${pluralize(minutes, 'минуту', 'минуты', 'минут')}`;
+  const hours = Math.round(minutes / 60);
+  return `через ${pluralize(hours, 'час', 'часа', 'часов')}`;
+}
+
+// Тексты напоминаний живут рядом с интерфейсом, а не в главном процессе,
+// чтобы имя питомца и его род не приходилось дублировать в двух местах.
+export function reminderText(payload = {}) {
+  const current = pet(payload.petId);
+  if (payload.type === 'movement') {
+    const exercise = payload.exercise || 'Небольшая разминка';
+    const amount = payload.amount || 'пара повторений';
+    return {
+      eyebrow: 'Разминка',
+      title: 'Пора размяться',
+      message: `${exercise}, ${amount}. ${current.name} подождёт рядом.`,
+      action: 'Готово'
+    };
+  }
+  if (payload.type === 'water') {
+    return {
+      eyebrow: 'Вода',
+      title: 'Пора выпить воды',
+      message: 'Пара глотков, и голова снова работает.',
+      action: 'Готово'
+    };
+  }
+  return {
+    eyebrow: 'Своё напоминание',
+    title: payload.title || 'Пора сделать паузу',
+    message: payload.message || 'Отойди от экрана на минуту.',
+    action: 'Готово'
+  };
 }
