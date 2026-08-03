@@ -5,3 +5,6 @@ release/
 npm-debug.log*
 assets/pets/runs/
 scripts/__pycache__/
+
+src/preview-harness.html
+src/popup-harness.html

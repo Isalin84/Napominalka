@@ -1,14 +1,15 @@
 {
   "appId": "ru.bestpracticeai.napominalka",
   "productName": "Напоминалка",
+  "icon": "build/icon.png",
   "files": [
     "main.cjs",
     "preload.cjs",
     "src/**/*",
-    "assets/**/*",
-    "!assets/pets/runs/**/*",
-    "!assets/pets/*/contact-sheet.png",
-    "!assets/pets/*/previews/**/*",
+    "assets/icons/**/*",
+    "assets/pets/*/spritesheet.webp",
+    "assets/sounds/*.mp3",
+    "assets/pet-reference-board.webp",
     "package.json"
   ],
   "win": {

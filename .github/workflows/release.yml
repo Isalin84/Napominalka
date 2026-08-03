@@ -60,6 +60,7 @@ jobs:
     needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Replace previous assets for this tag
         run: gh release delete "$GITHUB_REF_NAME" --yes --repo "$GITHUB_REPOSITORY" || true
         env:
@@ -70,12 +71,6 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          name: Напоминалка 0.1.0
-          body: |
-            Первая публичная сборка Напоминалки.
-
-            - macOS: версии для Apple Silicon и Intel
-            - Windows: установщик и portable-версия
-            - Четыре анимированных питомца со звуками
-            - Гибкие напоминания о воде, разминке и своих задачах
+          name: Напоминалка ${{ github.ref_name }}
+          body_path: ${{ github.workspace }}/RELEASE_NOTES.md
           files: release-assets/*
