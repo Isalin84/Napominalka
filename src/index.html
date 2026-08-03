@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6f1eb" />
+    <title>Напоминалка</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <div class="titlebar">
+        <div class="titlebar-brand"><span class="brand-mark">✦</span><span>Напоминалка</span></div>
+        <div class="titlebar-spacer"></div>
+        <button class="window-action" aria-label="Свернуть" data-window="minimize">−</button>
+        <button class="window-action close-action" aria-label="Закрыть" data-window="close">×</button>
+      </div>
+
+      <div class="app-layout">
+        <aside class="sidebar">
+          <div class="sidebar-heading">
+            <div class="brand-lockup"><span class="brand-dot"></span><div><strong>Напоминалка</strong><span>с питомцем</span></div></div>
+          </div>
+
+          <div class="sidebar-pet-card" id="sidebar-pet-card"></div>
+
+          <nav class="main-nav" aria-label="Основная навигация">
+            <button class="nav-item is-active" data-view="overview"><span class="nav-icon" data-nav-icon="spark"></span><span>Обзор</span></button>
+            <button class="nav-item" data-view="reminders"><span class="nav-icon" data-nav-icon="bell"></span><span>Напоминания</span><span class="nav-count" id="nav-count">2</span></button>
+            <button class="nav-item" data-view="history"><span class="nav-icon" data-nav-icon="history"></span><span>История</span></button>
+            <button class="nav-item" data-view="settings"><span class="nav-icon" data-nav-icon="settings"></span><span>Настройки</span></button>
+          </nav>
+
+          <div class="sidebar-bottom">
+            <div class="sound-status" id="sound-status"></div>
+            <button class="sidebar-help" data-view="settings"><span>Нужна пауза?</span><span class="help-arrow">↗</span></button>
+          </div>
+        </aside>
+
+        <main class="main-content" id="main-content">
+          <section class="view is-visible" id="view-overview" data-view-panel="overview">
+            <header class="page-header">
+              <div>
+                <p class="eyebrow" id="date-label">ПОНЕДЕЛЬНИК, 3 АВГУСТА</p>
+                <h1>Привет, <span id="greeting-name">друг</span> <span class="wave">✦</span></h1>
+                <p class="page-lede" id="greeting-copy">Давай оставим немного места для воды, движения и воздуха.</p>
+              </div>
+              <div class="header-actions">
+                <div class="live-chip"><span class="live-dot"></span><span>Питомец рядом</span></div>
+                <button class="icon-button" data-view="settings" aria-label="Настройки" data-tooltip="Настройки"><span data-icon="settings"></span></button>
+              </div>
+            </header>
+
+            <section class="hero-card">
+              <div class="hero-copy">
+                <span class="hero-kicker"><span data-icon="spark"></span> мягкий ритм на сегодня</span>
+                <h2>Маленькие действия<br /><em>собирают хороший день.</em></h2>
+                <p>Питомец напомнит о паузе и останется рядом, пока ты не отметишь её.</p>
+                <button class="primary-button" data-test="water"><span>Проверить напоминание</span><span data-icon="arrow"></span></button>
+              </div>
+              <div class="hero-art-wrap" id="hero-art"></div>
+              <div class="hero-orbit orbit-one"></div>
+              <div class="hero-orbit orbit-two"></div>
+              <span class="hero-sparkle sparkle-one">✦</span><span class="hero-sparkle sparkle-two">·</span>
+            </section>
+
+            <div class="section-label-row"><div><p class="eyebrow">СЕГОДНЯ</p><h2 class="section-title">Твой мягкий план</h2></div><button class="text-button" data-view="reminders">Настроить ритм <span data-icon="arrow"></span></button></div>
+            <section class="metric-grid">
+              <article class="metric-card water-metric">
+                <div class="metric-icon"><span data-icon="water"></span></div>
+                <div class="metric-label"><span>Вода</span><span class="metric-caption" id="water-schedule">каждый час</span></div>
+                <strong id="water-count">0</strong><span class="metric-unit">глотков-пауз</span>
+                <div class="progress-track"><span id="water-progress" style="width: 0%"></span></div>
+              </article>
+              <article class="metric-card movement-metric">
+                <div class="metric-icon"><span data-icon="movement"></span></div>
+                <div class="metric-label"><span>Движение</span><span class="metric-caption" id="movement-schedule">каждые 2 часа</span></div>
+                <strong id="movement-count">0</strong><span class="metric-unit">разминок</span>
+                <div class="progress-track"><span id="movement-progress" style="width: 0%"></span></div>
+              </article>
+              <article class="metric-card calm-metric">
+                <div class="metric-icon"><span data-icon="clock"></span></div>
+                <div class="metric-label"><span>Тихие часы</span><span class="metric-caption" id="quiet-caption">22:00 — 07:00</span></div>
+                <strong id="quiet-status">Вкл</strong><span class="metric-unit">без звуков</span>
+                <div class="metric-footer"><span class="mini-status-dot"></span><span>режим бережности</span></div>
+              </article>
+            </section>
+
+            <div class="content-grid">
+              <section class="panel reminders-panel">
+                <div class="panel-heading"><div><p class="eyebrow">ТВОИ НАПОМИНАНИЯ</p><h2 class="panel-title">Питомец следит за ритмом</h2></div><button class="round-button" data-view="reminders" aria-label="Добавить напоминание"><span data-icon="plus"></span></button></div>
+                <div class="reminder-list" id="overview-reminders"></div>
+              </section>
+              <section class="panel next-panel">
+                <div class="panel-heading"><div><p class="eyebrow">СЛЕДУЮЩАЯ ПАУЗА</p><h2 class="panel-title" id="next-title">Вода</h2></div><span class="next-time" id="next-time">через 1 час</span></div>
+                <div class="next-visual" id="next-visual"></div>
+                <p class="next-copy" id="next-copy">Пара глотков, и концентрация вернётся мягче.</p>
+                <button class="secondary-button full-width" data-test="water">Напомнить сейчас <span data-icon="arrow"></span></button>
+              </section>
+            </div>
+          </section>
+
+          <section class="view" id="view-reminders" data-view-panel="reminders">
+            <header class="page-header compact-header"><div><p class="eyebrow">РИТМ И ПРИВЫЧКИ</p><h1>Настроить напоминания</h1><p class="page-lede">Выбери, когда питомцу мягко появляться в углу экрана.</p></div><div class="header-actions"><button class="primary-button small-button" data-test="water"><span>Проверить</span><span data-icon="arrow"></span></button></div></header>
+            <div class="settings-grid">
+              <section class="panel settings-panel"><div class="panel-heading"><div><p class="eyebrow">ОСНОВНОЙ РИТМ</p><h2 class="panel-title">То, что поддерживает тело</h2></div><span class="panel-badge">2 привычки</span></div><div id="reminders-editor"></div></section>
+              <section class="panel add-panel"><p class="eyebrow">ЕЩЁ ОДНА ПАУЗА</p><h2 class="panel-title">Добавить своё</h2><p class="panel-copy">Например: встать из-за стола, проветрить комнату или сделать перерыв для глаз.</p><form id="custom-form" class="custom-form"><label>О чём напомнить<input name="title" required maxlength="48" placeholder="Время размяться" /></label><label>Текст питомца<textarea name="message" maxlength="100" placeholder="Давай на минутку отойдём от экрана"></textarea></label><div class="form-row"><label>Ритм<select name="scheduleMode"><option value="interval" selected>По интервалу</option><option value="time">В точное время</option></select></label><label>Интервал<select name="everyMinutes"><option value="30">Каждые 30 минут</option><option value="60" selected>Каждый час</option><option value="90">Каждые 1,5 часа</option><option value="120">Каждые 2 часа</option><option value="180">Каждые 3 часа</option></select></label></div><div class="form-row"><label>Дни<select name="days"><option value="weekdays" selected>По будням</option><option value="all">Каждый день</option><option value="weekend">По выходным</option></select></label><label>Время<input name="clockTime" type="time" value="15:00" /></label></div><button class="secondary-button full-width" type="submit"><span data-icon="plus"></span><span>Добавить напоминание</span></button></form></section>
+            </div>
+          </section>
+
+          <section class="view" id="view-history" data-view-panel="history">
+            <header class="page-header compact-header"><div><p class="eyebrow">ТВОЙ ПУТЬ</p><h1>История пауз</h1><p class="page-lede">Небольшие отметки, из которых складывается забота о себе.</p></div><div class="streak-pill"><strong id="history-today-count">0</strong><span>пауз сегодня</span></div></header>
+            <section class="history-layout"><div class="panel history-panel"><div class="panel-heading"><div><p class="eyebrow">ПОСЛЕДНИЕ ОТМЕТКИ</p><h2 class="panel-title">Ты уже сделал больше, чем кажется</h2></div><span class="history-total" id="history-total">0 всего</span></div><div class="history-list" id="history-list"></div></div><div class="panel history-note"><div class="note-icon">✦</div><p class="eyebrow">МАЛЕНЬКАЯ МЫСЛЬ</p><h2>Не нужно делать идеально.</h2><p>Пауза, которую ты действительно сделал, полезнее идеального плана, который остался в голове.</p><div class="note-signature" id="history-pet-signature"></div></div></section>
+          </section>
+
+          <section class="view" id="view-settings" data-view-panel="settings">
+            <header class="page-header compact-header"><div><p class="eyebrow">ЛИЧНОЕ ПРОСТРАНСТВО</p><h1>Настройки</h1><p class="page-lede">Сделай заботу о себе удобной именно для себя.</p></div></header>
+            <div class="settings-grid settings-page-grid"><section class="panel appearance-panel"><div class="panel-heading"><div><p class="eyebrow">ТВОЙ ПИТОМЕЦ</p><h2 class="panel-title">Кто будет рядом</h2></div></div><div class="pet-choice-grid" id="settings-pet-choice"></div></section><section class="panel preference-panel"><div class="panel-heading"><div><p class="eyebrow">ЗВУК И ТИШИНА</p><h2 class="panel-title">Как напоминать</h2></div></div><div id="preferences-editor"></div></section><section class="panel about-panel"><div><p class="eyebrow">О ПРИЛОЖЕНИИ</p><h2 class="panel-title">Напоминалка</h2><p class="about-copy">Приложение разработано командой Best Practice AI.</p></div><button class="developer-link" type="button" data-developer-site><span>bestpracticeai.ru</span><span data-icon="arrow"></span></button></section></div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <div class="onboarding-overlay is-hidden" id="onboarding" aria-modal="true" role="dialog">
+      <div class="onboarding-card">
+        <div class="onboarding-copy"><div class="brand-lockup dark-lockup"><span class="brand-dot"></span><div><strong>Напоминалка</strong><span>с питомцем</span></div></div><p class="eyebrow">ПЕРВЫЙ ШАГ</p><h1>Выбери того,<br /><em>кто будет рядом.</em></h1><p>Питомец будет появляться с напоминанием о воде, движении и твоих личных паузах.</p><div class="onboarding-stepper"><span class="step-dot is-active"></span><span class="step-dot"></span><span class="step-dot"></span></div></div><div class="onboarding-selection"><div class="reference-glow"></div><img class="reference-board" src="../assets/pet-reference-board-cutout.png" alt="Четыре питомца" /><div class="selection-header"><span>4 характера</span><span>1 мягкий ритм</span></div><div class="onboarding-pet-grid" id="onboarding-pet-grid"></div><button class="primary-button onboarding-button" id="onboarding-continue" disabled><span>Выбрать питомца</span><span data-icon="arrow"></span></button></div>
+      </div>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

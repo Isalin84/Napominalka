@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Напоминалка</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body class="popup-body">
+    <main class="popup-shell" id="popup-shell">
+      <div class="popup-pet" id="popup-pet"></div>
+      <div class="popup-card">
+        <div class="popup-topline"><span class="popup-eyebrow" id="popup-eyebrow">МАЛЕНЬКАЯ ПАУЗА</span><span class="popup-time" id="popup-time"></span></div>
+        <h1 id="popup-title">Пора попить воды</h1>
+        <p id="popup-message">Несколько глотков сейчас — и концентрация вернётся мягче.</p>
+        <div class="popup-actions"><button class="popup-settings" id="popup-settings">Настройки</button><button class="popup-complete" id="popup-complete"><span id="popup-action">Выпил воду</span><span>✓</span></button></div>
+      </div>
+      <div class="popup-tail"></div>
+    </main>
+    <script type="module" src="./popup.js"></script>
+  </body>
+</html>

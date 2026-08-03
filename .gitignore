@@ -1,0 +1,7 @@
+node_modules/
+dist/
+release/
+.DS_Store
+npm-debug.log*
+assets/pets/runs/
+scripts/__pycache__/

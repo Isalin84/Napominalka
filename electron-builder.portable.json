@@ -1,0 +1,18 @@
+{
+  "appId": "ru.bestpracticeai.napominalka",
+  "productName": "Напоминалка",
+  "files": [
+    "main.cjs",
+    "preload.cjs",
+    "src/**/*",
+    "assets/**/*",
+    "!assets/pets/runs/**/*",
+    "!assets/pets/*/contact-sheet.png",
+    "!assets/pets/*/previews/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": ["portable"],
+    "artifactName": "Napominalka-${version}-${arch}-portable.${ext}"
+  }
+}

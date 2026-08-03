@@ -1,0 +1,46 @@
+{
+  "name": "napominalka",
+  "version": "0.1.0",
+  "description": "Напоминалка — приложение с анимированными питомцами и напоминаниями о заботе о себе.",
+  "main": "main.cjs",
+  "author": "Best Practice AI",
+  "homepage": "https://bestpracticeai.ru/",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "dist": "electron-builder --mac --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:mac:x64": "electron-builder --mac --x64 --publish never",
+    "dist:win": "electron-builder --win --x64 --publish never",
+    "dist:win:arm64": "electron-builder --win --arm64 --publish never",
+    "dist:win:portable": "electron-builder --config electron-builder.portable.json --win --x64 --publish never",
+    "dist:win:portable:arm64": "electron-builder --config electron-builder.portable.json --win --arm64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "ru.bestpracticeai.napominalka",
+    "productName": "Напоминалка",
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "src/**/*",
+      "assets/**/*",
+      "!assets/pets/runs/**/*",
+      "!assets/pets/*/contact-sheet.png",
+      "!assets/pets/*/previews/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.healthcare-fitness"
+    },
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "Napominalka-${version}-${arch}-setup.${ext}"
+    }
+  }
+}
