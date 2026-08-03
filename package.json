@@ -1,6 +1,6 @@
 {
   "name": "napominalka",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Напоминалка — приложение с анимированными питомцами и напоминаниями о заботе о себе.",
   "main": "main.cjs",
   "author": "Best Practice AI",
@@ -26,7 +26,10 @@
     "appId": "ru.bestpracticeai.napominalka",
     "productName": "Напоминалка",
     "icon": "build/icon.png",
-    "electronLanguages": ["ru", "en-US"],
+    "electronLanguages": [
+      "ru",
+      "en-US"
+    ],
     "afterPack": "scripts/after-pack.cjs",
     "files": [
       "main.cjs",

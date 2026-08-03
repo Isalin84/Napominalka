@@ -11,19 +11,21 @@
 
 /* Карточка справа, питомец перекрывает её левый край примерно на 16 пикселей.
    Левый отступ держит текст правее питомца: рисунок занимает почти всю ширину кадра. */
-.popup-card { position: absolute; z-index: 2; right: 10px; top: 22px; width: 286px; height: 146px; padding: 13px 15px 12px 44px; border: 1px solid rgba(255,255,255,.55); border-radius: 19px; background: rgba(255, 253, 248, .84); box-shadow: 0 10px 26px rgba(25, 53, 45, .16), 0 2px 0 rgba(255,255,255,.4) inset; }
+.popup-card { position: absolute; z-index: 2; right: 10px; top: 22px; width: 286px; height: 146px; padding: 13px 15px 12px 44px; border: 1px solid rgba(255,255,255,.6); border-radius: 19px; background: rgba(255, 253, 248, .72); box-shadow: 0 10px 26px rgba(25, 53, 45, .2), 0 2px 0 rgba(255,255,255,.45) inset; }
 .popup-topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .popup-eyebrow { color: #bb7559; font-size: 8px; font-weight: 800; letter-spacing: .16em; }
-.popup-time { color: #9ba39d; font-size: 9px; }
-.popup-card h1 { margin: 8px 0 5px; color: #26352f; font-size: 17px; letter-spacing: -.045em; }
-.popup-card p { max-width: 224px; min-height: 27px; margin: 0; color: #6e7a73; font-size: 10px; line-height: 1.42; }
+.popup-time { color: #8b948e; font-size: 9px; }
+.popup-card h1 { margin: 8px 0 5px; color: #1f2d27; font-size: 17px; letter-spacing: -.045em; }
+/* Карточка полупрозрачная, поэтому вторичный текст темнее обычного:
+   на тёмных обоях подложка светлеет слабее и контраст падает. */
+.popup-card p { max-width: 224px; min-height: 27px; margin: 0; color: #5c6862; font-size: 10px; line-height: 1.42; }
 
 .popup-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 10px; }
 .popup-actions button { min-height: 28px; border-radius: 8px; font-size: 9px; font-weight: 700; white-space: nowrap; }
 .popup-settings { width: 26px; padding: 0; display: grid; place-items: center; color: #a6afa8; background: transparent; }
 .popup-settings:hover { color: #bb7559; }
 .popup-settings .ui-icon { width: 15px; height: 15px; }
-.popup-snooze { padding: 0 9px; color: #7d8a83; border: 1px solid rgba(31,43,40,.13); background: rgba(255,255,255,.62); }
+.popup-snooze { padding: 0 9px; color: #6b7871; border: 1px solid rgba(31,43,40,.16); background: rgba(255,255,255,.78); }
 .popup-snooze:hover { color: #2b6251; border-color: rgba(43,98,81,.35); }
 .popup-complete { display: inline-flex; align-items: center; gap: 7px; padding: 0 9px 0 11px; color: #fff; background: #2b6251; box-shadow: 0 5px 11px rgba(43,98,81,.22); }
 .popup-complete:hover { background: #1f4e41; transform: translateY(-1px); }
