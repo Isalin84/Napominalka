@@ -8,3 +8,4 @@ scripts/__pycache__/
 
 src/preview-harness.html
 src/popup-harness.html
+output/

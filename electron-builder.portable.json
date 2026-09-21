@@ -7,8 +7,12 @@
   "files": [
     "main.cjs",
     "preload.cjs",
+    "lib/**/*",
     "src/**/*",
+    "!src/*-harness.html",
     "assets/icons/**/*",
+    "assets/brand/**/*",
+    "assets/fonts/**/*",
     "assets/pets/*/spritesheet.webp",
     "assets/sounds/*.mp3",
     "assets/pet-reference-board.webp",

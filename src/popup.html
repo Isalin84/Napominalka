@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Напоминалка</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./brand.css" />
     <link rel="stylesheet" href="./popup.css" />
   </head>
   <body class="popup-body">
@@ -15,6 +16,7 @@
         <div class="popup-topline"><span class="popup-eyebrow" id="popup-eyebrow">Пауза</span><span class="popup-time" id="popup-time"></span></div>
         <h1 id="popup-title">Пора выпить воды</h1>
         <p id="popup-message">Пара глотков, и голова снова работает.</p>
+        <label class="popup-amount" id="popup-amount-row" hidden>Сделано <input id="popup-amount" type="number" min="1" max="100000" step="1" value="10" required /><span id="popup-unit">раз</span></label>
         <div class="popup-actions"><button class="popup-settings" id="popup-settings" aria-label="Настройки" title="Настройки"></button><button class="popup-snooze" id="popup-snooze">Отложить</button><button class="popup-complete" id="popup-complete"><span id="popup-action">Готово</span><span>✓</span></button></div>
       </div>
     </main>

@@ -1,8 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('desktopApi', {
+  platform: process.platform,
   getState: () => ipcRenderer.invoke('app:get-state'),
   saveState: (state) => ipcRenderer.invoke('app:save-state', state),
+  logExercise: (entry) => ipcRenderer.invoke('exercise:log', entry),
+  deleteExerciseLog: (id) => ipcRenderer.invoke('exercise:delete-log', id),
   testReminder: (key) => ipcRenderer.invoke('app:test-reminder', key),
   completePopup: (payload) => ipcRenderer.send('popup:complete', payload),
   snoozePopup: (payload) => ipcRenderer.send('popup:snooze', payload),

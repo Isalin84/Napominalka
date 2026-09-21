@@ -12,7 +12,9 @@ import {
   reminderText
 } from './petRenderer.js';
 
+import { renderExercises, bindExercises, quantity } from './exercises.js';
 const api = window.desktopApi;
+document.documentElement.dataset.platform = api.platform || 'win32';
 let state;
 let currentView = 'overview';
 let onboardingPet = null;
@@ -44,7 +46,7 @@ function todayHistory(key) {
 function allReminderEntries() {
   const entries = [
     { id: 'water', key: 'water', type: 'water', title: 'Вода', description: 'Пара глотков, чтобы голова снова работала.', ...state.reminders.water },
-    { id: 'movement', key: 'movement', type: 'movement', title: 'Разминка', description: `${state.reminders.movement.exercise || 'Разминка'}, ${state.reminders.movement.amount || 'пара повторений'}`, ...state.reminders.movement }
+    { id: 'movement', key: 'movement', type: 'movement', title: 'Разминка', description: (state.exercises || []).filter(e => e.enabled).map(e => e.name).join(', ') || 'Выберите упражнения в разделе «Упражнения»', ...state.reminders.movement }
   ];
   for (const reminder of state.customReminders) {
     entries.push({ id: reminder.id, key: reminder.id, type: 'custom', title: reminder.title, description: reminder.message || 'Своя пауза', ...reminder });
@@ -70,12 +72,14 @@ function scheduleLabel(entry) {
 }
 
 function historyLabel(item) {
+  if (item.exerciseId) return `${item.name || item.exercise || 'Упражнение'} · ${quantity(item.amount || item.amountCompleted || 0, item.unit)}`;
   if (item.type === 'movement' || item.key === 'movement') return 'Разминка';
   if (item.type === 'water' || item.key === 'water') return 'Вода';
   return item.title || item.action || 'Своя пауза';
 }
 
 function setView(view) {
+  if (view !== currentView) $('#main-content').scrollTop = 0;
   currentView = view;
   $$('[data-view-panel]').forEach((panel) => panel.classList.toggle('is-visible', panel.dataset.viewPanel === view));
   $$('.nav-item').forEach((item) => item.classList.toggle('is-active', item.dataset.view === view));
@@ -98,7 +102,7 @@ function renderHeader() {
   const now = new Date();
   const day = now.getDay() === 0 ? 7 : now.getDay();
   const date = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' }).format(now);
-  $('#date-label').textContent = `${dayLongLabels[day].toUpperCase()}, ${date.toUpperCase()}`;
+  $('#date-label').textContent = `${dayLongLabels[day]}, ${date}`;
   $('#greeting-name').textContent = current.name;
   $('#greeting-copy').textContent = current.greeting;
   $('#hero-art').innerHTML = petSprite(state.petId, { motion: 'idle' });
@@ -115,13 +119,13 @@ function renderOverview() {
   const waterCount = todayHistory('water').length;
   const movementCount = todayHistory('movement').length;
   $('#water-count').textContent = String(waterCount);
-  $('#water-unit').textContent = plural(waterCount, 'глоток', 'глотка', 'глотков');
+  $('#water-unit').textContent = plural(waterCount, 'пауза', 'паузы', 'пауз');
   $('#movement-count').textContent = String(movementCount);
   $('#movement-unit').textContent = plural(movementCount, 'разминка', 'разминки', 'разминок');
   $('#water-progress').style.width = `${Math.min(100, waterCount / 6 * 100)}%`;
   $('#movement-progress').style.width = `${Math.min(100, movementCount / 3 * 100)}%`;
-  $('#water-schedule').textContent = formatInterval(state.reminders.water.everyMinutes);
-  $('#movement-schedule').textContent = formatInterval(state.reminders.movement.everyMinutes);
+  $('#water-schedule').textContent = scheduleLabel(state.reminders.water);
+  $('#movement-schedule').textContent = scheduleLabel(state.reminders.movement);
   $('#quiet-caption').textContent = `${state.quietHours.from} - ${state.quietHours.to}`;
   $('#quiet-status').textContent = state.quietHours.enabled ? 'Вкл' : 'Выкл';
   $('#overview-reminders').innerHTML = entries.slice(0, 4).map((entry) => reminderRow(entry, { showTest: true })).join('');
@@ -129,6 +133,7 @@ function renderOverview() {
   const next = entries.filter((entry) => entry.enabled && entry.nextAt).sort((a, b) => a.nextAt - b.nextAt)[0] || entries[0];
   const preview = reminderText({ type: next.type, petId: state.petId, exercise: state.reminders.movement.exercise, amount: state.reminders.movement.amount, title: next.title, message: next.description });
   $('#next-title').textContent = next.title;
+  $('#next-test').dataset.test = next.key;
   $('#next-time').textContent = next.enabled ? formatNextTime(next.nextAt) : 'выключено';
   $('#next-copy').textContent = preview.message;
   $('#next-visual').innerHTML = petSprite(state.petId, { motion: 'review' });
@@ -218,6 +223,7 @@ function renderApp() {
   renderOverview();
   renderRemindersEditor();
   renderHistory();
+  renderExercises(state);
   renderPreferences();
   renderOnboarding();
   setView(currentView);
@@ -326,8 +332,7 @@ function bindEvents() {
 
     const testButton = event.target.closest('[data-test]');
     if (testButton) {
-      api.testReminder(testButton.dataset.test);
-      return showToast('Показываю напоминание.');
+      return api.testReminder(testButton.dataset.test).then(shown => showToast(shown ? 'Показываю напоминание.' : 'Сначала включите хотя бы одно упражнение.'));
     }
 
     const modeButton = event.target.closest('[data-mode-key]');
@@ -416,6 +421,9 @@ async function init() {
   bindEvents();
   startPetAnimations();
   state = await api.getState();
+  bindExercises({getState: () => state, save: saveAndRender, acceptState: next => {state=next; renderApp();}, toast: showToast, api});
+  let displayedDay = new Date().toDateString();
+  setInterval(() => { if (displayedDay !== new Date().toDateString()) { displayedDay = new Date().toDateString(); renderApp(); } }, 30000);
   onboardingPet = state.onboardingComplete ? state.petId : null;
   api.onStateUpdated((nextState) => { state = nextState; renderApp(); });
   api.onNavigate((view) => setView(view));

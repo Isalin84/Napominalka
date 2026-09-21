@@ -4,14 +4,15 @@
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; media-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self';" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f6f1eb" />
+    <meta name="theme-color" content="#0B1D3A" />
     <title>Напоминалка</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./brand.css" />
   </head>
   <body>
     <div class="app-shell">
       <div class="titlebar">
-        <div class="titlebar-brand"><span class="brand-mark">✦</span><span>Напоминалка</span></div>
+        <div class="titlebar-brand"><span>Напоминалка</span></div>
         <div class="titlebar-spacer"></div>
         <button class="window-action" aria-label="Свернуть" data-window="minimize">−</button>
         <button class="window-action close-action" aria-label="Свернуть в трей" data-window="close">×</button>
@@ -28,13 +29,14 @@
           <nav class="main-nav" aria-label="Основная навигация">
             <button class="nav-item is-active" data-view="overview"><span class="nav-icon" data-nav-icon="spark"></span><span>Обзор</span></button>
             <button class="nav-item" data-view="reminders"><span class="nav-icon" data-nav-icon="bell"></span><span>Напоминания</span><span class="nav-count" id="nav-count">2</span></button>
+            <button class="nav-item" data-view="exercises"><span class="nav-icon" data-nav-icon="movement"></span><span>Упражнения</span></button>
             <button class="nav-item" data-view="history"><span class="nav-icon" data-nav-icon="history"></span><span>История</span></button>
             <button class="nav-item" data-view="settings"><span class="nav-icon" data-nav-icon="settings"></span><span>Настройки</span></button>
           </nav>
 
           <div class="sidebar-bottom">
             <div class="sound-status" id="sound-status"></div>
-            <button class="sidebar-help" data-view="settings"><span>Настройки</span><span class="help-arrow">↗</span></button>
+            <button class="sidebar-help" data-developer-site><span>Создано с<br />Best Practice AI</span><span class="help-arrow">↗</span></button>
           </div>
         </aside>
 
@@ -43,7 +45,7 @@
             <header class="page-header">
               <div>
                 <p class="eyebrow" id="date-label">ПОНЕДЕЛЬНИК, 3 АВГУСТА</p>
-                <h1><span id="greeting-name">Винни</span> на месте <span class="wave">✦</span></h1>
+                <h1><span id="greeting-name">Винни</span> рядом</h1>
                 <p class="page-lede" id="greeting-copy">Гавкает, когда пора отойти от экрана.</p>
               </div>
               <div class="header-actions">
@@ -54,16 +56,14 @@
 
             <section class="hero-card">
               <div class="hero-copy">
-                <span class="hero-kicker"><span data-icon="spark"></span> сегодня</span>
-                <h2>Питомец напомнит,<br /><em>когда пора сделать паузу.</em></h2>
-                <p>Он появится в углу экрана и не уйдёт, пока не отметишь паузу или не отложишь её.</p>
-                <button class="primary-button" data-test="water"><span>Показать сейчас</span><span data-icon="arrow"></span></button>
+                <h2>Время для себя.<br />Даже в рабочий день.</h2>
+                <p>Вода, движение и маленькие паузы.<br />Ваш питомец поможет о них помнить.</p>
+                <button class="primary-button" data-view="exercises"><span>Мои упражнения</span><span data-icon="arrow"></span></button>
               </div>
               <div class="hero-art-wrap" id="hero-art"></div>
-              <div class="hero-orbit orbit-one"></div>
-              <div class="hero-orbit orbit-two"></div>
-              <span class="hero-sparkle sparkle-one">✦</span><span class="hero-sparkle sparkle-two">·</span>
             </section>
+
+            <section class="overview-goals" id="overview-goals" aria-label="Цели упражнений на сегодня"></section>
 
             <div class="section-label-row"><div><p class="eyebrow">СЕГОДНЯ</p><h2 class="section-title">Что запланировано</h2></div><button class="text-button" data-view="reminders">Настроить <span data-icon="arrow"></span></button></div>
             <section class="metric-grid">
@@ -96,7 +96,7 @@
                 <div class="panel-heading"><div><p class="eyebrow">СЛЕДУЮЩАЯ ПАУЗА</p><h2 class="panel-title" id="next-title">Вода</h2></div><span class="next-time" id="next-time">через час</span></div>
                 <div class="next-visual" id="next-visual"></div>
                 <p class="next-copy" id="next-copy">Пара глотков, и голова снова работает.</p>
-                <button class="secondary-button full-width" data-test="water">Показать сейчас <span data-icon="arrow"></span></button>
+                <button class="secondary-button full-width" id="next-test" data-test="water">Показать сейчас <span data-icon="arrow"></span></button>
               </section>
             </div>
           </section>
@@ -107,6 +107,13 @@
               <section class="panel settings-panel"><div class="panel-heading"><div><p class="eyebrow">ОСНОВНЫЕ</p><h2 class="panel-title">Вода и разминка</h2></div><span class="panel-badge" id="habits-count">2 напоминания</span></div><div id="reminders-editor"></div></section>
               <section class="panel add-panel"><p class="eyebrow">СВОЁ НАПОМИНАНИЕ</p><h2 class="panel-title">Добавить</h2><p class="panel-copy">Например, проветрить комнату или дать отдохнуть глазам.</p><form id="custom-form" class="custom-form"><label>О чём напомнить<input name="title" required maxlength="48" placeholder="Время размяться" /></label><label>Текст питомца<textarea name="message" maxlength="100" placeholder="Давай на минутку отойдём от экрана"></textarea></label><div class="form-row"><label>Как напоминать<select name="scheduleMode"><option value="interval" selected>По интервалу</option><option value="time">В точное время</option></select></label><label>Интервал<select name="everyMinutes"><option value="30">Каждые 30 минут</option><option value="60" selected>Каждый час</option><option value="90">Каждые полтора часа</option><option value="120">Каждые 2 часа</option><option value="180">Каждые 3 часа</option></select></label></div><div class="form-row"><label>Дни<select name="days"><option value="weekdays" selected>По будням</option><option value="all">Каждый день</option><option value="weekend">По выходным</option></select></label><label>Время<input name="clockTime" type="time" value="15:00" /></label></div><button class="secondary-button full-width" type="submit"><span data-icon="plus"></span><span>Добавить напоминание</span></button></form></section>
             </div>
+          </section>
+
+          <section class="view" id="view-exercises" data-view-panel="exercises">
+            <header class="page-header"><div><p class="eyebrow">Движение каждый день</p><h1>Упражнения и цели</h1><p class="page-lede">Выберите свой темп. Каждый подход приближает к дневной цели.</p></div><button class="primary-button small-button" id="add-exercise">Добавить упражнение</button></header>
+            <div class="exercise-intro"><span>Питомец по очереди предлагает включённые упражнения.</span><button class="text-button" data-view="reminders">Настроить расписание</button></div>
+            <div id="exercise-list" class="exercise-grid"></div>
+            <section class="panel exercise-journal"><div class="panel-heading"><div><h2 class="panel-title">Подходы за сегодня</h2><p class="panel-copy">Ошибочную запись можно отменить.</p></div><span id="exercise-day-label" class="panel-badge"></span></div><div id="exercise-log"></div></section>
           </section>
 
           <section class="view" id="view-history" data-view-panel="history">
@@ -123,6 +130,20 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <dialog id="exercise-dialog" class="exercise-dialog" aria-labelledby="exercise-dialog-title">
+      <form id="exercise-form" class="custom-form">
+        <div class="panel-heading"><h2 id="exercise-dialog-title">Новое упражнение</h2><button type="button" class="icon-button" id="close-exercise-dialog" aria-label="Закрыть">×</button></div>
+        <input type="hidden" name="id" />
+        <label>Название<input name="name" required maxlength="60" placeholder="Например, подтягивания" list="exercise-suggestions" /></label>
+        <datalist id="exercise-suggestions"><option value="Приседания"></option><option value="Отжимания"></option><option value="Подтягивания"></option><option value="Планка"></option><option value="Выпады"></option><option value="Растяжка"></option></datalist>
+        <label>Что считаем<select name="unit"><option value="reps">Повторения</option><option value="seconds">Секунды</option></select></label>
+        <div class="form-row"><label>Цель на день<input name="target" type="number" min="1" max="100000" step="1" value="30" required /></label><label>За один подход<input name="perSet" type="number" min="1" max="100000" step="1" value="10" required /></label></div>
+        <p class="panel-copy">Цель начинается заново каждый день. Предыдущие результаты сохраняются. Единицу измерения нельзя менять после первой записи.</p>
+        <label class="checkbox-label"><input type="checkbox" name="enabled" checked /> Предлагать в напоминаниях</label>
+        <button class="primary-button" type="submit">Сохранить упражнение</button>
+      </form>
+    </dialog>
 
     <div class="onboarding-overlay is-hidden" id="onboarding" aria-modal="true" role="dialog">
       <div class="onboarding-card">

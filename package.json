@@ -1,6 +1,6 @@
 {
   "name": "napominalka",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Напоминалка — приложение с анимированными питомцами и напоминаниями о заботе о себе.",
   "main": "main.cjs",
   "author": "Best Practice AI",
@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "test": "node scripts/check-text.mjs",
+    "test": "node scripts/check-text.mjs && node --test test/exercises.test.cjs",
     "dist": "electron-builder --mac --win --publish never",
     "dist:mac": "electron-builder --mac --publish never",
     "dist:mac:x64": "electron-builder --mac --x64 --publish never",
@@ -34,8 +34,12 @@
     "files": [
       "main.cjs",
       "preload.cjs",
+      "lib/**/*",
       "src/**/*",
+      "!src/*-harness.html",
       "assets/icons/**/*",
+      "assets/brand/**/*",
+      "assets/fonts/**/*",
       "assets/pets/*/spritesheet.webp",
       "assets/sounds/*.mp3",
       "assets/pet-reference-board.webp",

@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { activeExercises, migrateExerciseState, validateAmount } = require('./lib/exercises.cjs');
 
 let mainWindow;
 let popupWindow;
@@ -9,12 +10,14 @@ let state;
 let scheduler;
 let popupMoveSaveTimer;
 let popupAutoSnoozeTimer;
+let activePopupPayload;
 let quitting = false;
 
 const APP_NAME = 'Напоминалка';
 const DEVELOPER_URL = 'https://bestpracticeai.ru/';
 const TICK_MS = 15000;
 const POPUP_AUTO_SNOOZE_MS = 5 * 60 * 1000;
+const HISTORY_LIMIT = 5000;
 
 app.setName(APP_NAME);
 
@@ -50,7 +53,8 @@ function createDefaultState() {
       }
     },
     customReminders: [],
-    history: []
+    history: [],
+    ...migrateExerciseState({})
   };
 }
 
@@ -76,6 +80,7 @@ function stateCandidates() {
 function mergeState(saved) {
   const base = createDefaultState();
   if (!saved || typeof saved !== 'object') return base;
+  const exerciseState = migrateExerciseState(saved);
   return {
     ...base,
     ...saved,
@@ -87,7 +92,8 @@ function mergeState(saved) {
       movement: { ...base.reminders.movement, ...((saved.reminders || {}).movement || {}) }
     },
     customReminders: Array.isArray(saved.customReminders) ? saved.customReminders : [],
-    history: Array.isArray(saved.history) ? saved.history : []
+    history: Array.isArray(saved.history) ? saved.history : [],
+    ...exerciseState
   };
 }
 
@@ -141,13 +147,17 @@ function applyAutostart() {
 }
 
 function createMainWindow() {
+  const isMac = process.platform === 'darwin';
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 820,
     minWidth: 960,
     minHeight: 680,
-    backgroundColor: '#f6f1eb',
-    frame: false,
+    backgroundColor: '#FAF9F6',
+    // macOS owns the upper-left traffic lights; Windows retains the renderer's
+    // custom controls and frameless appearance.
+    frame: isMac,
+    ...(isMac ? { titleBarStyle: 'hidden', trafficLightPosition: { x: 20, y: 20 } } : {}),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -246,12 +256,12 @@ function rememberPopupPosition() {
 function createPopupWindow(payload) {
   if (!popupWindow) {
     popupWindow = new BrowserWindow({
-      width: 420,
-      height: 200,
-      minWidth: 420,
-      minHeight: 200,
-      maxWidth: 420,
-      maxHeight: 200,
+      width: 440,
+      height: 270,
+      minWidth: 440,
+      minHeight: 270,
+      maxWidth: 440,
+      maxHeight: 270,
       transparent: true,
       frame: false,
       resizable: false,
@@ -280,11 +290,13 @@ function createPopupWindow(payload) {
       clearTimeout(popupMoveSaveTimer);
       clearTimeout(popupAutoSnoozeTimer);
       popupWindow = null;
+      activePopupPayload = null;
     });
   }
 
   const sendPayload = () => {
     if (!popupWindow || popupWindow.isDestroyed()) return;
+    if (activePopupPayload?.id !== payload.id) return;
     popupWindow.webContents.send('popup:reminder', payload);
     positionPopup();
     // showInactive намеренно: напоминание не должно выдёргивать курсор из работы.
@@ -348,6 +360,11 @@ function rescheduleAfter(key, from) {
 function buildPayload(key) {
   const reminder = findReminder(key);
   const type = key === 'water' || key === 'movement' ? key : 'custom';
+  const exercise = type === 'movement' ? nextMovementExercise() : null;
+  const suggestedAmount = exercise?.perSet;
+  const amount = exercise
+    ? `${suggestedAmount} ${exercise.unit === 'seconds' ? 'сек' : 'раз'}`
+    : undefined;
   return {
     id: `${key}-${Date.now()}`,
     key,
@@ -357,26 +374,46 @@ function buildPayload(key) {
     volume: state.volume,
     snoozeMinutes: state.snoozeMinutes || 10,
     createdAt: new Date().toISOString(),
-    exercise: type === 'movement' ? state.reminders.movement.exercise : undefined,
-    amount: type === 'movement' ? state.reminders.movement.amount : undefined,
+    exerciseId: exercise?.id,
+    exercise: exercise?.name,
+    amount,
+    suggestedAmount,
+    unit: exercise?.unit,
     title: type === 'custom' ? reminder?.title : undefined,
     message: type === 'custom' ? reminder?.message : undefined
   };
 }
 
+function nextMovementExercise() {
+  const exercises = activeExercises(state.exercises);
+  if (!exercises.length) return null;
+  const cursor = Number.isSafeInteger(state.exerciseCursor) && state.exerciseCursor >= 0
+    ? state.exerciseCursor
+    : 0;
+  const index = cursor % exercises.length;
+  state.exerciseCursor = (index + 1) % exercises.length;
+  return exercises[index];
+}
+
 function showReminder(key) {
   if (!findReminder(key)) return;
+  if (key === 'movement' && !activeExercises(state.exercises).length) return false;
   const payload = buildPayload(key);
+  activePopupPayload = payload;
+  persistState();
   createPopupWindow(payload);
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app:reminder-shown', payload);
+  return true;
 }
 
 function closePopup() {
   clearTimeout(popupAutoSnoozeTimer);
+  activePopupPayload = null;
   if (popupWindow && !popupWindow.isDestroyed()) popupWindow.hide();
 }
 
 function snoozeReminder(payload) {
+  if (!payload || !activePopupPayload || payload.id !== activePopupPayload.id || payload.key !== activePopupPayload.key) return;
   const minutes = Number(state.snoozeMinutes) || 10;
   const reminder = findReminder(payload?.key);
   if (reminder) {
@@ -388,18 +425,49 @@ function snoozeReminder(payload) {
 }
 
 function recordCompletion(payload) {
+  if (!payload || !activePopupPayload || payload.id !== activePopupPayload.id || payload.key !== activePopupPayload.key) {
+    return false;
+  }
+  const completion = activePopupPayload;
+  if (state.history.some((item) => item.id === completion.id)) return false;
+  const completedAt = new Date().toISOString();
+  let exerciseLogEntry;
+  if (completion.type === 'movement') {
+    const amount = validateAmount(payload.amountCompleted);
+    const exercise = state.exercises.find((item) => item.id === completion.exerciseId);
+    if (!amount || !exercise) return false;
+    exerciseLogEntry = {
+      id: `exercise-${completion.id}`,
+      exerciseId: exercise.id,
+      name: exercise.name,
+      unit: exercise.unit,
+      amount,
+      completedAt
+    };
+  }
+
+  activePopupPayload = null;
+  if (exerciseLogEntry && !state.exerciseLog.some((item) => item.id === exerciseLogEntry.id)) {
+    state.exerciseLog.push(exerciseLogEntry);
+  }
   state.history.push({
-    id: payload.id,
-    key: payload.key,
-    type: payload.type,
-    title: payload.type === 'custom' ? payload.title : undefined,
+    id: completion.id,
+    key: completion.key,
+    type: completion.type,
+    title: completion.type === 'custom' ? completion.title : undefined,
     petId: state.petId,
-    completedAt: new Date().toISOString()
+    exerciseLogId: exerciseLogEntry?.id,
+    exerciseId: exerciseLogEntry?.exerciseId,
+    name: exerciseLogEntry?.name,
+    unit: exerciseLogEntry?.unit,
+    amount: exerciseLogEntry?.amount,
+    completedAt
   });
-  state.history = state.history.slice(-50);
-  rescheduleAfter(payload.key, Date.now());
+  state.history = state.history.slice(-HISTORY_LIMIT);
+  rescheduleAfter(completion.key, Date.now());
   persistState();
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app:state-updated', state);
+  return true;
 }
 
 function tickScheduler() {
@@ -413,6 +481,7 @@ function tickScheduler() {
 
   for (const [key, reminder] of candidates) {
     if (!reminder.enabled) continue;
+    if (key === 'movement' && !activeExercises(state.exercises).length) continue;
     if (reminder.frequency !== 'time' && !activeToday(reminder)) continue;
     if (reminder.nextAt && reminder.nextAt <= now) {
       showReminder(key);
@@ -423,24 +492,85 @@ function tickScheduler() {
   }
 }
 
+function preserveLoggedExerciseUnits(exercises, currentExercises, exerciseLog) {
+  const loggedExerciseIds = new Set(exerciseLog.map((item) => item.exerciseId));
+  const currentById = new Map(currentExercises.map((exercise) => [exercise.id, exercise]));
+  return exercises.map((exercise) => {
+    const current = currentById.get(exercise.id);
+    return loggedExerciseIds.has(exercise.id) && current
+      ? { ...exercise, unit: current.unit }
+      : exercise;
+  });
+}
+
 function registerIpc() {
   ipcMain.handle('app:get-state', () => state);
   ipcMain.handle('app:save-state', (_event, nextState) => {
     const popupPosition = state.popupPosition;
     const wasAutostart = state.autostart;
-    state = mergeState({ ...nextState, popupPosition });
+    const currentExercises = state.exercises;
+    const currentExerciseLog = state.exerciseLog;
+    // The main process owns completion records. Renderer snapshots can be stale
+    // while a popup is open, so they may update configuration but never history.
+    state = mergeState({
+      ...state,
+      ...(nextState && typeof nextState === 'object' ? nextState : {}),
+      popupPosition,
+      history: state.history,
+      exerciseLog: state.exerciseLog,
+      exerciseCursor: state.exerciseCursor
+    });
+    state.exercises = preserveLoggedExerciseUnits(state.exercises, currentExercises, currentExerciseLog);
     ensureNextAt();
     persistState();
     if (state.autostart !== wasAutostart) applyAutostart();
     return state;
   });
   ipcMain.handle('app:test-reminder', (_event, key) => {
-    showReminder(typeof key === 'string' ? key : 'water');
-    return true;
+    return Boolean(showReminder(typeof key === 'string' ? key : 'water'));
+  });
+  ipcMain.handle('exercise:log', (_event, payload) => {
+    const exerciseId = typeof payload?.exerciseId === 'string' ? payload.exerciseId : '';
+    const amount = validateAmount(payload?.amount);
+    const exercise = state.exercises.find((item) => item.id === exerciseId);
+    if (!amount || !exercise) throw new Error('Укажите количество от 1 до 100000.');
+    const completedAt = new Date().toISOString();
+    const entry = {
+      id: `exercise-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      exerciseId: exercise.id,
+      name: exercise.name,
+      unit: exercise.unit,
+      amount,
+      completedAt
+    };
+    state.exerciseLog.push(entry);
+    state.history.push({
+      id: `history-${entry.id}`,
+      key: 'movement',
+      type: 'movement',
+      petId: state.petId,
+      exerciseLogId: entry.id,
+      exerciseId: entry.exerciseId,
+      name: entry.name,
+      unit: entry.unit,
+      amount: entry.amount,
+      completedAt
+    });
+    state.history = state.history.slice(-HISTORY_LIMIT);
+    persistState();
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app:state-updated', state);
+    return state;
+  });
+  ipcMain.handle('exercise:delete-log', (_event, id) => {
+    if (typeof id !== 'string') throw new Error('Некорректная запись упражнения.');
+    state.exerciseLog = state.exerciseLog.filter((item) => item.id !== id);
+    state.history = state.history.filter((item) => item.exerciseLogId !== id);
+    persistState();
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app:state-updated', state);
+    return state;
   });
   ipcMain.on('popup:complete', (_event, payload) => {
-    recordCompletion(payload);
-    closePopup();
+    if (recordCompletion(payload)) closePopup();
   });
   ipcMain.on('popup:snooze', (_event, payload) => snoozeReminder(payload));
   ipcMain.on('popup:open-settings', () => {
