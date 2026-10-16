@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dayKey, periodRange, streakDays, summarize, GRAIN_WEEK_THRESHOLD_DAYS } from '../src/stats.js';
+import {
+  dayKey, periodRange, streakDays, summarize, bucketSets, byExercise, calendarWeeks, GRAIN_WEEK_THRESHOLD_DAYS
+} from '../src/stats.js';
 
 const AT = (iso) => new Date(iso);
 const entry = (iso) => ({ id: iso, exerciseId: 'squats', amount: 10, unit: 'reps', completedAt: iso });
@@ -276,4 +278,212 @@ test('deltaSets за день сравнивает с вчерашним днё�
   const s = summarize(log, [ex('squats', 30)], periodRange('day', now), now);
   assert.equal(s.sets, 1);
   assert.equal(s.deltaSets, 0);
+});
+
+test('дневные бакеты включают пустые дни', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [rec('squats', '2026-10-12T10:00:00', 10), rec('squats', '2026-10-16T10:00:00', 10)];
+  const buckets = bucketSets(log, periodRange('week', now));
+  assert.equal(buckets.length, 5);
+  assert.deepEqual(buckets.map((b) => b.sets), [1, 0, 0, 0, 1]);
+  assert.equal(buckets[0].key, '2026-10-12');
+  assert.equal(buckets[0].label, '12');
+});
+
+test('часовые бакеты — ровно сутки', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [rec('squats', '2026-10-16T09:30:00', 10), rec('squats', '2026-10-16T09:45:00', 10)];
+  const buckets = bucketSets(log, periodRange('day', now));
+  assert.equal(buckets.length, 24);
+  assert.equal(buckets[9].sets, 2);
+  assert.equal(buckets[10].sets, 0);
+});
+
+test('недельные бакеты подписаны датой понедельника', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const range = periodRange('all', now, [rec('squats', '2026-01-01T10:00:00', 10)]);
+  const buckets = bucketSets([rec('squats', '2026-10-14T10:00:00', 10)], range);
+  assert.equal(range.grain, 'week');
+  assert.equal(buckets.at(-1).label, '12.10');
+  assert.equal(buckets.at(-1).sets, 1);
+});
+
+test('запись с непригодной датой не попадает ни в один бакет', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [{ id: 'x', exerciseId: 'squats', amount: 10, completedAt: 'вчера' }];
+  const buckets = bucketSets(log, periodRange('week', now));
+  assert.equal(buckets.reduce((sum, b) => sum + b.sets, 0), 0);
+});
+
+test('имя плитки берётся из списка упражнений, а не из записи', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [
+    { id: 'a', exerciseId: 'squats', name: 'Старое имя', unit: 'reps', amount: 20, completedAt: '2026-10-14T10:00:00' },
+    { id: 'b', exerciseId: 'squats', name: 'Приседания', unit: 'reps', amount: 20, completedAt: '2026-10-15T10:00:00' }
+  ];
+  const tiles = byExercise(log, [{ ...ex('squats', 30), name: 'Приседания' }], periodRange('week', now));
+  assert.equal(tiles.length, 1);
+  assert.equal(tiles[0].name, 'Приседания');
+  assert.equal(tiles[0].total, 40);
+});
+
+test('нечисловое количество считается нулём и не ломает сумму', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [
+    { id: 'a', exerciseId: 'squats', amount: 'много', completedAt: '2026-10-14T10:00:00' },
+    rec('squats', '2026-10-15T10:00:00', 20)
+  ];
+  const tiles = byExercise(log, [ex('squats', 30)], periodRange('week', now));
+  assert.equal(tiles[0].total, 20);
+});
+
+test('выключенное упражнение остаётся, если есть записи за период', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const exercises = [{ ...ex('squats', 30), enabled: false }, ex('pushups', 20)];
+  const tiles = byExercise([rec('squats', '2026-10-14T10:00:00', 20)], exercises, periodRange('week', now));
+  assert.deepEqual(tiles.map((t) => t.id).sort(), ['pushups', 'squats']);
+});
+
+test('выключенное упражнение без записей за период не показывается', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const exercises = [{ ...ex('squats', 30), enabled: false }, ex('pushups', 20)];
+  const tiles = byExercise([], exercises, periodRange('week', now));
+  assert.deepEqual(tiles.map((t) => t.id), ['pushups']);
+});
+
+test('плитки отсортированы по итогу по убыванию', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [rec('squats', '2026-10-14T10:00:00', 20), rec('pushups', '2026-10-14T10:00:00', 50)];
+  const tiles = byExercise(log, [ex('squats', 30), ex('pushups', 20)], periodRange('week', now));
+  assert.deepEqual(tiles.map((t) => t.id), ['pushups', 'squats']);
+});
+
+test('spark выровнен по бакетам', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const range = periodRange('week', now);
+  const log = [rec('squats', '2026-10-12T10:00:00', 15), rec('squats', '2026-10-16T10:00:00', 25)];
+  const tiles = byExercise(log, [ex('squats', 30)], range);
+  assert.equal(tiles[0].spark.length, bucketSets(log, range).length);
+  assert.deepEqual(tiles[0].spark, [15, 0, 0, 0, 25]);
+});
+
+test('goalDays считает дни, где цель взята', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [
+    rec('squats', '2026-10-12T10:00:00', 30),
+    rec('squats', '2026-10-13T10:00:00', 12),
+    rec('squats', '2026-10-14T10:00:00', 15),
+    rec('squats', '2026-10-14T18:00:00', 15)
+  ];
+  const tiles = byExercise(log, [ex('squats', 30)], periodRange('week', now));
+  assert.equal(tiles[0].goalDays, 2);
+  assert.equal(tiles[0].activeDays, 3);
+});
+
+test('deltaPercent равен null, когда в прошлом периоде пусто', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const tiles = byExercise([rec('squats', '2026-10-14T10:00:00', 20)], [ex('squats', 30)], periodRange('week', now));
+  assert.equal(tiles[0].deltaPercent, null);
+});
+
+test('deltaPercent округляется до целого', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [rec('squats', '2026-10-06T10:00:00', 100), rec('squats', '2026-10-14T10:00:00', 150)];
+  const tiles = byExercise(log, [ex('squats', 30)], periodRange('week', now));
+  assert.equal(tiles[0].deltaPercent, 50);
+});
+
+test('календарь — пять недель по семь дней, последняя содержит сегодня', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const weeks = calendarWeeks([], now);
+  assert.equal(weeks.length, 5);
+  assert.ok(weeks.every((week) => week.length === 7));
+  assert.equal(weeks[0][0].key, '2026-09-14');
+  assert.equal(weeks[4][4].key, '2026-10-16');
+});
+
+test('дни после сегодня помечены inFuture', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const weeks = calendarWeeks([], now);
+  assert.equal(weeks[4][4].inFuture, false);
+  assert.equal(weeks[4][5].inFuture, true);
+  assert.equal(weeks[4][6].inFuture, true);
+});
+
+test('календарь считает подходы за день', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [rec('squats', '2026-10-14T10:00:00', 10), rec('pushups', '2026-10-14T11:00:00', 10)];
+  const weeks = calendarWeeks(log, now);
+  assert.equal(weeks[4][2].sets, 2);
+});
+
+test('запись на несуществующее упражнение не создаёт плитку и не роняет расчёт', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [rec('удалённое', '2026-10-14T10:00:00', 20), rec('squats', '2026-10-14T10:00:00', 20)];
+  const tiles = byExercise(log, [ex('squats', 30)], periodRange('week', now));
+  assert.deepEqual(tiles.map((t) => t.id), ['squats']);
+  assert.equal(tiles[0].total, 20);
+});
+
+test('упражнение в секундах доезжает без искажений', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const plank = { id: 'plank', name: 'Планка', unit: 'seconds', target: 120, perSet: 60, enabled: true };
+  const log = [{ id: 'p', exerciseId: 'plank', unit: 'seconds', amount: 60, completedAt: '2026-10-14T10:00:00' }];
+  const tiles = byExercise(log, [plank], periodRange('week', now));
+  assert.equal(tiles[0].unit, 'seconds');
+  assert.equal(tiles[0].total, 60);
+});
+
+test('часовой бакет несёт номер часа ключом, а подпись — самим часом', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const buckets = bucketSets([], periodRange('day', now));
+  assert.equal(buckets[0].key, 0);
+  assert.equal(buckets[23].key, 23);
+  assert.equal(buckets[9].label, '9');
+});
+
+test('подходы вне диапазона в бакеты не попадают', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [
+    rec('squats', '2026-10-11T23:59:00', 10),  // воскресенье перед неделей
+    rec('squats', '2026-10-12T00:00:00', 10),  // первая минута недели
+    rec('squats', '2026-10-17T00:00:00', 10)   // завтра
+  ];
+  const buckets = bucketSets(log, periodRange('week', now));
+  assert.deepEqual(buckets.map((b) => b.sets), [1, 0, 0, 0, 0]);
+});
+
+test('итог плитки не включает подходы предыдущего периода', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [rec('squats', '2026-10-06T10:00:00', 100), rec('squats', '2026-10-14T10:00:00', 150)];
+  const tiles = byExercise(log, [ex('squats', 30)], periodRange('week', now));
+  assert.equal(tiles[0].total, 150);
+  assert.equal(tiles[0].sets, 1);
+});
+
+test('в воскресенье календарь заканчивается этой же неделей', () => {
+  const now = AT('2026-10-18T20:00:00');
+  const weeks = calendarWeeks([], now);
+  assert.equal(weeks[4][0].key, '2026-10-12');
+  assert.equal(weeks[4][6].key, '2026-10-18');
+  assert.equal(weeks[4][6].inFuture, false);
+});
+
+test('deltaPercent округляется, а не обрезается: 66,7 процента даёт 67', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [rec('squats', '2026-10-06T10:00:00', 3), rec('squats', '2026-10-14T10:00:00', 5)];
+  const tiles = byExercise(log, [ex('squats', 30)], periodRange('week', now));
+  assert.equal(tiles[0].deltaPercent, 67);
+});
+
+test('deltaPercent не берёт в прошлый период записи из зазора после обрезки', () => {
+  // В пятницу прошлая неделя обрезана по пятницу: суббота 10 октября уже не её часть.
+  const now = AT('2026-10-16T20:00:00');
+  const log = [
+    rec('squats', '2026-10-09T10:00:00', 100),  // прошлая пятница, входит
+    rec('squats', '2026-10-10T10:00:00', 100),  // прошлая суббота, за обрезкой
+    rec('squats', '2026-10-14T10:00:00', 100)
+  ];
+  const tiles = byExercise(log, [ex('squats', 30)], periodRange('week', now));
+  assert.equal(tiles[0].deltaPercent, 0);
 });
