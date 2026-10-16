@@ -1,6 +1,6 @@
 import { icon, pluralize } from './petRenderer.js';
 
-const escape = (value) => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export const escape = (value) => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today = (iso) => new Date(iso).toDateString() === new Date().toDateString();
 export const quantity = (value, unit) => unit === 'seconds' ? pluralize(value, 'секунда', 'секунды', 'секунд') : pluralize(value, 'повторение', 'повторения', 'повторений');
 export const exerciseTotal = (state, id) => (state.exerciseLog || []).filter(item => item.exerciseId === id && today(item.completedAt)).reduce((sum, item) => sum + item.amount, 0);
