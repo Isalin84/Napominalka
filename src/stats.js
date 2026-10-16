@@ -92,3 +92,80 @@ export function periodRange(period, now, log = []) {
     previous: null
   };
 }
+
+// Записи с непригодной датой молча пропускаются, как и в earliestEntry: один
+// битый completedAt не должен ронять весь экран.
+function entriesBetween(log, from, to) {
+  const result = [];
+  for (const item of Array.isArray(log) ? log : []) {
+    const date = new Date(item?.completedAt);
+    if (Number.isNaN(date.getTime())) continue;
+    if (date >= from && date <= to) result.push({ item, date });
+  }
+  return result;
+}
+
+// Серия считается от now, а не от границ периода: она не принадлежит периоду.
+export function streakDays(log, now) {
+  const days = new Set();
+  for (const item of Array.isArray(log) ? log : []) {
+    const key = dayKey(item?.completedAt);
+    if (key) days.add(key);
+  }
+  let cursor = startOfDay(now);
+  // Пока сегодня ничего не записано, серия не оборвана: у человека есть время до полуночи.
+  if (!days.has(dayKey(cursor))) cursor = addDays(cursor, -1);
+  let streak = 0;
+  while (days.has(dayKey(cursor))) {
+    streak += 1;
+    cursor = addDays(cursor, -1);
+  }
+  return streak;
+}
+
+export function summarize(log, exercises, range, now) {
+  const inPeriod = entriesBetween(log, range.from, range.to);
+
+  // range.to у periodRange — конец сегодняшних суток, так что будущие дни сюда
+  // не попадают: в среду неделя — это 3 дня, а не 7.
+  const totalDays = daysBetween(range.from, startOfDay(range.to)) + 1;
+
+  const activeDays = new Set(inPeriod.map(({ date }) => dayKey(date))).size;
+
+  // Знаменатель доли целей — пары «день и упражнение», по которым в этот день
+  // была хотя бы одна запись, а не все теоретически возможные: иначе цифра
+  // наказывает за дни, когда упражнение и не планировалось. Упражнение без
+  // цели от единицы в дробь не идёт вовсе, это же закрывает деление на ноль.
+  const targets = new Map();
+  for (const exercise of Array.isArray(exercises) ? exercises : []) {
+    const target = Number(exercise?.target);
+    if (Number.isFinite(target) && target >= 1) targets.set(exercise.id, target);
+  }
+  const pairs = new Map();
+  for (const { item, date } of inPeriod) {
+    if (!targets.has(item.exerciseId)) continue;
+    const key = `${dayKey(date)}|${item.exerciseId}`;
+    const amount = Number(item.amount);
+    const pair = pairs.get(key) ?? { exerciseId: item.exerciseId, total: 0 };
+    pair.total += Number.isFinite(amount) ? amount : 0;
+    pairs.set(key, pair);
+  }
+  let goalsHit = 0;
+  for (const { exerciseId, total } of pairs.values()) {
+    if (total >= targets.get(exerciseId)) goalsHit += 1;
+  }
+
+  const deltaSets = range.previous
+    ? inPeriod.length - entriesBetween(log, range.previous.from, range.previous.to).length
+    : null;
+
+  return {
+    sets: inPeriod.length,
+    activeDays,
+    totalDays,
+    streak: streakDays(log, now),
+    goalsHit,
+    goalsPossible: pairs.size,
+    deltaSets
+  };
+}
