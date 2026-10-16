@@ -68,7 +68,7 @@ test('короткий прошлый месяц не выходит за сво
 });
 
 test('всё время начинается с самой ранней записи, предыдущего нет', () => {
-  const log = [entry('2026-09-21T13:14:16.904Z'), entry('2026-10-16T05:50:07.522Z')];
+  const log = [entry('2026-09-21T13:14:16'), entry('2026-10-16T05:50:07.522Z')];
   const r = periodRange('all', AT('2026-10-16T14:00:00'), log);
   assert.equal(dayKey(r.from), '2026-09-21');
   assert.equal(r.previous, null);
@@ -93,4 +93,12 @@ test('записи с непригодной датой не двигают на
   const log = [{ id: 'x', exerciseId: 'squats', amount: 10, completedAt: 'вчера' }, entry('2026-10-10T10:00:00')];
   const r = periodRange('all', AT('2026-10-16T14:00:00'), log);
   assert.equal(dayKey(r.from), '2026-10-10');
+});
+
+test('запись из будущего не переворачивает диапазон всего времени', () => {
+  // Сбитые часы или правка файла руками: from позже to сломал бы всё, что считается ниже.
+  const r = periodRange('all', AT('2026-10-16T14:00:00'), [entry('2026-10-20T10:00:00')]);
+  assert.ok(r.from <= r.to);
+  assert.equal(dayKey(r.from), '2026-10-16');
+  assert.equal(dayKey(r.to), '2026-10-16');
 });

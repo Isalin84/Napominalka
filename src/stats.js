@@ -3,8 +3,6 @@
 // Дальше этого числа суток точки по дням сливаются в кашу, и шаг становится недельным.
 export const GRAIN_WEEK_THRESHOLD_DAYS = 70;
 
-const PERIODS = ['day', 'week', 'month', 'all'];
-
 // Намеренный дубль localDayKey из lib/exercises.cjs: главный процесс на
 // CommonJS, рендерер на ES-модулях, общего синхронного импорта между ними нет.
 export function dayKey(value) {
@@ -44,8 +42,6 @@ function clippedPrevious(previousFrom, previousLastDay, livedDays) {
 }
 
 export function periodRange(period, now, log = []) {
-  if (!PERIODS.includes(period)) throw new Error(`Неизвестный период: ${period}`);
-
   const today = startOfDay(now);
   const to = endOfDay(now);
 
