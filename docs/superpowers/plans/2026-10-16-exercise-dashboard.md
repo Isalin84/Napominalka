@@ -319,7 +319,7 @@ Expected: FAIL, `streakDays is not a function`.
 - [ ] **Step 4: Прогнать тесты**
 
 Run: `node --test test/stats.test.mjs`
-Expected: PASS, 24 теста.
+Expected: PASS, тестов в файле становится 25 плюс любые добавленные сверх брифа.
 
 - [ ] **Step 5: Коммит**
 
@@ -519,7 +519,7 @@ Expected: FAIL, `bucketSets is not a function`.
 - [ ] **Step 4: Прогнать тесты**
 
 Run: `npm test`
-Expected: PASS, все файлы зелёные, в `stats.test.mjs` 42 теста.
+Expected: PASS, все файлы зелёные. К этому моменту в `stats.test.mjs` накопилось 35 тестов от задач 1–2, ваши 18 доводят счёт минимум до 53.
 
 - [ ] **Step 5: Коммит**
 
