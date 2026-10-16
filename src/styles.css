@@ -187,6 +187,29 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Высота подписи держится, даже когда её нет: иначе карточки в ряду разъезжаются. */
 .stats-metric-caption { min-height: 30px; margin-top: 12px; color: var(--muted); font-size: 10px; line-height: 1.5; }
 
+.stats-block { margin-top: 16px; padding: 20px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); }
+.stats-block-title { margin: 0; color: var(--navy); font-size: 14px; font-weight: 700; }
+.stats-block-note { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
+.stats-block-empty { margin: 18px 0 6px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+/* Высота идёт от пропорции viewBox: подписи не растягиваются, а предел ширины не даёт графику вырасти в плакат. */
+.stats-chart { display: block; width: 100%; max-width: 960px; height: auto; margin-top: 14px; }
+.stats-bar { fill: var(--navy); }
+.stats-bar.is-today { fill: var(--gold); }
+.stats-chart-axis { stroke: var(--line); stroke-width: 1; }
+.stats-chart-label, .stats-chart-value { font-size: 10px; font-family: inherit; }
+.stats-chart-label { fill: var(--muted); }
+.stats-chart-value { fill: var(--navy); font-weight: 600; }
+.stats-calendar { width: 100%; max-width: 560px; margin-top: 14px; border-collapse: separate; border-spacing: 4px; table-layout: fixed; }
+.stats-calendar th { color: var(--muted); font-size: 10px; font-weight: 500; }
+.stats-calendar thead th:first-child, .stats-calendar tbody th { width: 52px; }
+.stats-calendar tbody th { text-align: left; white-space: nowrap; }
+.stats-day { height: 34px; border: 2px solid transparent; border-radius: 3px; background: var(--mist); color: var(--navy); font-size: 11px; font-weight: 600; text-align: center; }
+.stats-day.level-1 { background: var(--navy-soft); }
+.stats-day.level-2 { background: var(--navy-mid); color: var(--paper); }
+.stats-day.level-3 { background: var(--navy); color: var(--paper); }
+.stats-day.is-today { border-color: var(--gold); }
+.stats-day.is-future { border-style: dashed; border-color: var(--line); background: transparent; }
+
 @media (max-width: 1080px) { .main-content { padding-left: 30px; padding-right: 30px; }.hero-art-wrap { right: 52px; }.hero-card { padding-left: 28px; }.hero-copy h2 { font-size: 26px; } }
 @media (max-width: 960px) { .stats-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.app-layout { grid-template-columns: 196px minmax(0, 1fr); }.sidebar { padding-left: 11px; padding-right: 11px; }.main-content { padding: 26px 22px; }.content-grid, .settings-grid, .history-layout { grid-template-columns: 1fr; }.next-panel { min-height: 230px; }.hero-art-wrap { right: 24px; width: 166px; height: 180px; }.hero-orbit { right: -2px; }.hero-copy { max-width: 55%; } }
 
