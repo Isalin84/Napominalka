@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "test": "node scripts/check-text.mjs && node --test test/exercises.test.cjs && node --test test/confirmation.test.cjs",
+    "test": "node scripts/check-text.mjs && node --test test/exercises.test.cjs && node --test test/confirmation.test.cjs && node --test test/stats.test.mjs",
     "dist": "electron-builder --mac --win --publish never",
     "dist:mac": "electron-builder --mac --publish never",
     "dist:mac:x64": "electron-builder --mac --x64 --publish never",

@@ -13,6 +13,7 @@ import {
 } from './petRenderer.js';
 
 import { renderExercises, bindExercises, quantity } from './exercises.js';
+import { renderStats, bindStats } from './statsView.js';
 const api = window.desktopApi;
 document.documentElement.dataset.platform = api.platform || 'win32';
 let state;
@@ -225,6 +226,7 @@ function renderApp() {
   renderRemindersEditor();
   renderHistory();
   renderExercises(state);
+  renderStats(state);
   renderPreferences();
   renderOnboarding();
   setView(currentView);
@@ -430,6 +432,7 @@ async function init() {
   startPetAnimations();
   state = await api.getState();
   bindExercises({getState: () => state, save: saveAndRender, acceptState: next => {state=next; renderApp();}, toast: showToast, api});
+  bindStats({rerender: renderApp});
   let displayedDay = new Date().toDateString();
   setInterval(() => { if (displayedDay !== new Date().toDateString()) { displayedDay = new Date().toDateString(); renderApp(); } }, 30000);
   onboardingPet = state.onboardingComplete ? state.petId : null;

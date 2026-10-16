@@ -87,13 +87,22 @@ test('dayKey отдаёт null на мусоре', () => {
   assert.equal(dayKey(''), null);
 });
 
-test('день — одни сутки, шаг часовой, предыдущий день вчера', () => {
+test('день — одни сутки, шаг часовой', () => {
   const r = periodRange('day', AT('2026-10-16T14:00:00'));
   assert.equal(r.grain, 'hour');
   assert.equal(dayKey(r.from), '2026-10-16');
   assert.equal(dayKey(r.to), '2026-10-16');
+});
+
+test('вчера обрезается по времени суток, а не берётся целиком', () => {
+  // Правило обрезки предыдущего периода действует и внутри суток: в девять
+  // утра один сегодняшний подход нельзя сравнивать со всеми вчерашними.
+  const r = periodRange('day', AT('2026-10-16T09:30:00'));
   assert.equal(dayKey(r.previous.from), '2026-10-15');
+  assert.equal(r.previous.from.getHours(), 0);
   assert.equal(dayKey(r.previous.to), '2026-10-15');
+  assert.equal(r.previous.to.getHours(), 9);
+  assert.equal(r.previous.to.getMinutes(), 30);
 });
 
 test('неделя начинается с понедельника', () => {
@@ -176,7 +185,7 @@ Expected: FAIL, модуль `../src/stats.js` не найден.
 - [ ] **Step 4: Прогнать тесты**
 
 Run: `node --test test/stats.test.mjs`
-Expected: PASS, 12 тестов.
+Expected: PASS, 13 тестов.
 
 - [ ] **Step 5: Добавить файл в `npm test`**
 
@@ -310,7 +319,7 @@ Expected: FAIL, `streakDays is not a function`.
 - [ ] **Step 4: Прогнать тесты**
 
 Run: `node --test test/stats.test.mjs`
-Expected: PASS, 23 теста.
+Expected: PASS, тестов в файле становится 25 плюс любые добавленные сверх брифа.
 
 - [ ] **Step 5: Коммит**
 
@@ -510,7 +519,7 @@ Expected: FAIL, `bucketSets is not a function`.
 - [ ] **Step 4: Прогнать тесты**
 
 Run: `npm test`
-Expected: PASS, все файлы зелёные, в `stats.test.mjs` 41 тест.
+Expected: PASS, все файлы зелёные. К этому моменту в `stats.test.mjs` накопилось 35 тестов от задач 1–2, ваши 18 доводят счёт минимум до 53.
 
 - [ ] **Step 5: Коммит**
 
