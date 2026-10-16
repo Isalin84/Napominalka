@@ -35,8 +35,9 @@ function periodSwitcher() {
   return `<div class="stats-periods" role="group" aria-label="Период статистики">${buttons}</div>`;
 }
 
-function statsHeader() {
-  return `<header class="page-header compact-header"><div><p class="eyebrow">УПРАЖНЕНИЯ</p><h1>Статистика</h1></div>${periodSwitcher()}</header>`;
+// На пустом экране шапка идёт без переключателя: переключать нечего.
+function statsHeader(aside = '') {
+  return `<header class="page-header compact-header"><div><p class="eyebrow">УПРАЖНЕНИЯ</p><h1>Статистика</h1></div>${aside}</header>`;
 }
 
 function metricCard({ label, value, unit, caption }) {
@@ -66,11 +67,42 @@ function metricRow(summary) {
   return `<section class="stats-metric-grid" aria-label="Итоги за период">${cards.join('')}</section>`;
 }
 
+// Значение атрибута внутри селектора: в кавычках экранируются только сами
+// кавычки и обратный слэш.
+const quoted = (value) => `"${String(value).replace(/["\\]/g, (character) => `\\${character}`)}"`;
+
+// Чем элемент опознаётся после перерисовки. Ссылка на узел не годится: узла
+// больше нет. А id и data-атрибуты задаёт разметка, и у нового воплощения того
+// же элемента они те же. Берём все data-атрибуты сразу: по одному плитка
+// упражнения и кнопка внутри неё могли бы совпасть.
+function focusSelector(element) {
+  if (!(element instanceof HTMLElement)) return null;
+  if (element.id) return `[id=${quoted(element.id)}]`;
+  const parts = Object.keys(element.dataset).map((key) => {
+    const name = key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+    return `[data-${name}=${quoted(element.dataset[key])}]`;
+  });
+  return parts.length ? parts.join('') : null;
+}
+
+// Вид перерисовывается целиком при каждом обновлении состояния, и активный
+// элемент исчезает вместе с разметкой: фокус уезжает на body, следующий Tab
+// начинает обход заново с сайдбара, а скринридер теряет место. Для кнопок,
+// которые жмут несколько раз подряд, это основной сценарий, поэтому фокус
+// возвращается здесь, а не в обработчике: приём один на все элементы вида.
+function paint(view, html) {
+  const selector = view.contains(document.activeElement) ? focusSelector(document.activeElement) : null;
+  view.innerHTML = html;
+  if (selector) view.querySelector(selector)?.focus();
+}
+
 export function renderStats(state) {
   const view = document.querySelector('#view-stats');
   const log = state.exerciseLog || [];
   if (!log.length) {
-    view.innerHTML = '<div class="empty-state">Здесь появится статистика, когда наберутся первые подходы.</div>';
+    // Пустые оси, нули и карточки не рисуем, но название раздела остаётся:
+    // вкладка с одной серой строкой выглядит сломанной, а не пустой.
+    paint(view, `${statsHeader()}<div class="empty-state">Здесь появится статистика, когда наберутся первые подходы.</div>`);
     return;
   }
 
@@ -80,7 +112,7 @@ export function renderStats(state) {
   const range = periodRange(period, now, log);
   const summary = summarize(log, state.exercises || [], range, now);
 
-  view.innerHTML = statsHeader() + metricRow(summary);
+  paint(view, statsHeader(periodSwitcher()) + metricRow(summary));
 }
 
 export function bindStats({ getState, rerender }) {
