@@ -222,7 +222,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .stats-delta { flex: none; font-size: 11px; font-weight: 700; }
 .stats-delta.is-up { color: var(--green); }
 .stats-delta.is-down { color: var(--red); }
-.stats-delta.is-same, .stats-delta.is-new { color: var(--muted); font-weight: 600; }
+.stats-delta.is-same { color: var(--muted); font-weight: 600; }
 .stats-tile-total { display: flex; align-items: baseline; gap: 7px; margin-top: 14px; }
 .stats-tile-total strong { color: var(--navy); font-size: 30px; font-weight: 750; letter-spacing: -1px; line-height: 1; }
 .stats-tile-unit { color: var(--muted); font-size: 11px; }

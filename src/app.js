@@ -432,7 +432,7 @@ async function init() {
   startPetAnimations();
   state = await api.getState();
   bindExercises({getState: () => state, save: saveAndRender, acceptState: next => {state=next; renderApp();}, toast: showToast, api});
-  bindStats({getState: () => state, rerender: renderApp});
+  bindStats({rerender: renderApp});
   let displayedDay = new Date().toDateString();
   setInterval(() => { if (displayedDay !== new Date().toDateString()) { displayedDay = new Date().toDateString(); renderApp(); } }, 30000);
   onboardingPet = state.onboardingComplete ? state.petId : null;

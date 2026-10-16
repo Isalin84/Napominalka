@@ -8,6 +8,8 @@ const AT = (iso) => new Date(iso);
 const entry = (iso) => ({ id: iso, exerciseId: 'squats', amount: 10, unit: 'reps', completedAt: iso });
 const ex = (id, target) => ({ id, name: id, unit: 'reps', target, perSet: 10, enabled: true });
 const rec = (exerciseId, iso, amount) => ({ id: `${exerciseId}-${iso}`, exerciseId, name: exerciseId, unit: 'reps', amount, completedAt: iso });
+// Номера непустых позиций ряда: по ним видно смещение, даже когда рядов по два десятка.
+const filled = (values) => values.map((value, index) => (value > 0 ? index : -1)).filter((index) => index >= 0);
 
 test('dayKey отдаёт локальную дату', () => {
   assert.equal(dayKey('2026-10-16T05:50:07.522Z'), dayKey(new Date('2026-10-16T05:50:07.522Z')));
@@ -486,4 +488,49 @@ test('deltaPercent не берёт в прошлый период записи �
   ];
   const tiles = byExercise(log, [ex('squats', 30)], periodRange('week', now));
   assert.equal(tiles[0].deltaPercent, 0);
+});
+
+test('порог шага держится ровно: 70 суток ещё дневные, 71 уже недельные', () => {
+  // 16 октября 2026 минус 69 дней — 8 августа, то есть размах ровно в 70 суток.
+  const now = AT('2026-10-16T14:00:00');
+  assert.equal(periodRange('all', now, [entry('2026-08-08T10:00:00')]).grain, 'day');
+  assert.equal(periodRange('all', now, [entry('2026-08-07T10:00:00')]).grain, 'week');
+});
+
+test('единица и цель плитки берутся из списка упражнений, а не из записи', () => {
+  // В записи лежат единица и цель на момент записи. После правки упражнения они
+  // разошлись бы с настройкой, и плитка считала бы секунды повторениями.
+  const now = AT('2026-10-16T20:00:00');
+  const plank = { id: 'plank', name: 'Планка', unit: 'seconds', target: 90, perSet: 30, enabled: true };
+  const log = [{ id: 'p', exerciseId: 'plank', name: 'Планка', unit: 'reps', target: 5, amount: 60, completedAt: '2026-10-14T10:00:00' }];
+  const tiles = byExercise(log, [plank], periodRange('week', now));
+  assert.equal(tiles[0].unit, 'seconds');
+  assert.equal(tiles[0].target, 90);
+});
+
+test('spark выровнен по бакетам на часовом шаге', () => {
+  // Расхождение в один индекс нарисовало бы верные столбики под чужими подписями,
+  // и ни одно число на экране этому не возразит: ловится только здесь.
+  const now = AT('2026-10-16T20:00:00');
+  const range = periodRange('day', now);
+  const log = [rec('squats', '2026-10-16T09:30:00', 15), rec('squats', '2026-10-16T18:00:00', 25)];
+  const spark = byExercise(log, [ex('squats', 30)], range)[0].spark;
+  const buckets = bucketSets(log, range);
+  assert.equal(spark.length, buckets.length);
+  assert.deepEqual(filled(spark), filled(buckets.map((b) => b.sets)));
+  assert.equal(spark[9], 15);
+  assert.equal(spark[18], 25);
+});
+
+test('spark выровнен по бакетам на недельном шаге', () => {
+  const now = AT('2026-10-16T20:00:00');
+  const log = [rec('squats', '2026-01-01T10:00:00', 15), rec('squats', '2026-10-14T10:00:00', 25)];
+  const range = periodRange('all', now, log);
+  assert.equal(range.grain, 'week');
+  const spark = byExercise(log, [ex('squats', 30)], range)[0].spark;
+  const buckets = bucketSets(log, range);
+  assert.equal(spark.length, buckets.length);
+  assert.deepEqual(filled(spark), filled(buckets.map((b) => b.sets)));
+  assert.equal(spark[0], 15);
+  assert.equal(spark.at(-1), 25);
 });

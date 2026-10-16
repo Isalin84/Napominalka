@@ -35,7 +35,7 @@ const PREVIOUS_PERIOD = {
 function periodSwitcher() {
   const buttons = PERIODS.map(({ id, label }) => {
     const active = id === period;
-    return `<button class="stats-period ${active ? 'is-active' : ''}" type="button" data-stats-period="${id}" aria-pressed="${active}">${label}</button>`;
+    return `<button class="stats-period${active ? ' is-active' : ''}" type="button" data-stats-period="${id}" aria-pressed="${active}">${label}</button>`;
   }).join('');
   return `<div class="stats-periods" role="group" aria-label="Период статистики">${buttons}</div>`;
 }
@@ -77,13 +77,26 @@ function metricRow(summary) {
 const CHART = { width: 800, height: 200, top: 22, bottom: 26, side: 8, maxBarWidth: 44, minBarHeight: 2 };
 // Сколько места в единицах viewBox нужно подписи оси: «21.09» шире, чем «14».
 const LABEL_WIDTH = { hour: 18, day: 18, week: 36 };
-// Число над столбиком убирается, когда столбики слишком узки для него.
-const VALUE_MIN_SLOT = 16;
+// Число над столбиком убирается, когда столбики слишком узки для него. В крупном
+// графике плитки это повторения, а не подходы: «120» при кегле 10 занимает около 17.
+const VALUE_MIN_SLOT = 22;
 
 const CHART_TITLES = { hour: 'Подходы по часам', day: 'Подходы по дням', week: 'Подходы по неделям' };
 const CHART_STEP = { hour: 'час', day: 'день', week: 'неделю' };
 
 const setsWord = (count) => plural(count, 'подход', 'подхода', 'подходов');
+
+// 'YYYY-MM-DD' -> 'ДД.ММ'. Ключ уже собран в stats.js, здесь он только переписывается.
+const shortDate = (key) => `${key.slice(8)}.${key.slice(5, 7)}`;
+
+// Как шаг называется в подсказке. Подпись оси для этого не годится: на дневном
+// шаге это голое число месяца, и «16: 3 подхода» не говорит, какой это месяц, —
+// а на «Всём времени» ось переходит из сентября в октябрь без единой пометки.
+// В самой подписи оси месяца по-прежнему нет: там тесно.
+function stepTitle(step, grain) {
+  if (grain === 'hour') return `${step.label}:00`;
+  return grain === 'day' ? shortDate(step.key) : step.label;
+}
 
 // Какой столбик «сейчас». У недельного шага ключ это понедельник, и с сегодняшним
 // днём он совпал бы раз в неделю, поэтому берётся последний: диапазон всегда
@@ -119,7 +132,7 @@ function barChart({ steps, values, grain, now, ariaFor, titleFor, target = null 
     if (value > 0) {
       // Единица при большом максимуме иначе стала бы невидимой и выглядела бы пропуском.
       const barHeight = Math.max((value / peak) * plotHeight, CHART.minBarHeight);
-      const stepName = grain === 'hour' ? `${step.label}:00` : step.label;
+      const stepName = stepTitle(step, grain);
       markup += `<rect class="stats-bar${index === current ? ' is-today' : ''}" x="${(center - barWidth / 2).toFixed(1)}" y="${(baseline - barHeight).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}"><title>${titleFor(stepName, value)}</title></rect>`;
       if (slot >= VALUE_MIN_SLOT) {
         markup += `<text class="stats-chart-value" x="${center.toFixed(1)}" y="${(baseline - barHeight - 5).toFixed(1)}" text-anchor="middle">${value}</text>`;
@@ -135,7 +148,7 @@ function barChart({ steps, values, grain, now, ariaFor, titleFor, target = null 
   let goal = '';
   if (hasTarget) {
     const y = baseline - (target / peak) * plotHeight;
-    goal = `<line class="stats-chart-target" x1="${side}" y1="${y.toFixed(1)}" x2="${width - side}" y2="${y.toFixed(1)}"/><text class="stats-chart-target-label" x="${width - side}" y="${(y - 5).toFixed(1)}" text-anchor="end">цель ${target}</text>`;
+    goal = `<line class="stats-chart-target" x1="${side}" y1="${y.toFixed(1)}" x2="${width - side}" y2="${y.toFixed(1)}"/><text class="stats-chart-target-label" x="${side}" y="${(y - 5).toFixed(1)}" text-anchor="start">цель ${target}</text>`;
   }
 
   return `<svg class="stats-chart" viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="${ariaFor(highest)}"><line class="stats-chart-axis" x1="${side}" y1="${baseline}" x2="${width - side}" y2="${baseline}"/>${parts.join('')}${goal}</svg>`;
@@ -164,9 +177,6 @@ function setsChart(log, range, summary, now) {
 
 const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
 
-// 'YYYY-MM-DD' -> 'ДД.ММ'. Ключ уже собран в stats.js, здесь он только переписывается.
-const shortDate = (key) => `${key.slice(8)}.${key.slice(5, 7)}`;
-
 // Пороги заливки: 0, 1–2, 3–5, 6 и больше. Это раскладка по корзинам для цвета,
 // счёт подходов остаётся в stats.js.
 function dayLevel(sets) {
@@ -181,10 +191,13 @@ function calendarCell(day, todayKey) {
   if (day.inFuture) {
     return `<td class="stats-day is-future"><span class="sr-only">${date}, день ещё не наступил</span></td>`;
   }
-  const today = day.key === todayKey ? ' is-today' : '';
+  const today = day.key === todayKey;
   // Число в клетке нужно тем, кто не различает оттенки; пустая клетка остаётся пустой.
   const count = day.sets > 0 ? day.sets : '';
-  return `<td class="stats-day level-${dayLevel(day.sets)}${today}" title="${date}: ${day.sets} ${setsWord(day.sets)}"><span class="sr-only">${date}: ${day.sets} ${setsWord(day.sets)}</span><span aria-hidden="true">${count}</span></td>`;
+  // «Сегодня» видно по золотой рамке, но золото на белом даёт контраст 2,1:1,
+  // поэтому для скринридера оно сказано словом. Подпись одна: title рядом с
+  // sr-only часть скринридеров прочитала бы дважды.
+  return `<td class="stats-day level-${dayLevel(day.sets)}${today ? ' is-today' : ''}"><span class="sr-only">${date}: ${day.sets} ${setsWord(day.sets)}${today ? ', сегодня' : ''}</span><span aria-hidden="true">${count}</span></td>`;
 }
 
 // Календарь показывает пять недель всегда, что бы ни было выбрано в переключателе:
@@ -221,10 +234,12 @@ function sparkline(values) {
 // а скринридер читает полную подпись с прошлым периодом.
 function deltaBadge(tile) {
   const labels = PREVIOUS_PERIOD[period];
-  // При нулевом итоге сравнивать нечего. У «Всего времени» прошлого периода нет вовсе,
-  // и «новое» там было бы неправдой: оно значило бы «в прошлый раз этого не было».
-  if (tile.total === 0 || !labels) return '';
-  if (tile.deltaPercent === null) return '<span class="stats-delta is-new">новое</span>';
+  // При нулевом итоге сравнивать нечего, у «Всего времени» прошлого периода нет
+  // вовсе, а deltaPercent === null означает «в прошлом периоде пусто». Это «сравнить
+  // не с чем», а не «такого раньше не было»: на «Месяце» прошлый период пуст у всех
+  // упражнений разом, пока записей меньше чем на два месяца. Значок без направления
+  // ничего не сообщает, а итог и мелкий график на плитке и так есть.
+  if (tile.total === 0 || !labels || tile.deltaPercent === null) return '';
   const percent = Math.abs(tile.deltaPercent);
   if (tile.deltaPercent === 0) {
     return `<span class="stats-delta is-same" title="${labels.same}"><span aria-hidden="true">0%</span><span class="sr-only">${labels.same}</span></span>`;
@@ -234,17 +249,10 @@ function deltaBadge(tile) {
   return `<span class="stats-delta ${up ? 'is-up' : 'is-down'}" title="${spoken}"><span aria-hidden="true">${up ? '▲' : '▼'} ${percent}%</span><span class="sr-only">${spoken}</span></span>`;
 }
 
-// Цель есть, только если это число от единицы: так же её считает stats.js, и при
-// другом значении goalDays равен нулю не из-за невыполнения, а из-за отсутствия цели.
-function targetOf(tile) {
-  const target = Number(tile.target);
-  return Number.isFinite(target) && target >= 1 ? target : null;
-}
-
 function goalCaption(tile) {
   if (tile.activeDays === 0) return 'Подходов не было';
   // Без цели «закрыта: 0» утверждало бы неправду: вместо этого просто число подходов.
-  if (targetOf(tile) === null) return `${tile.sets} ${setsWord(tile.sets)}`;
+  if (tile.target === null) return `${tile.sets} ${setsWord(tile.sets)}`;
   // «Из» требует родительного: «из 1 дня», «из 2 дней», «из 5 дней», «из 21 дня».
   return `Цель закрыта: ${tile.goalDays} из ${pluralize(tile.activeDays, 'дня', 'дней', 'дней')}`;
 }
@@ -253,14 +261,14 @@ const BY_STEP = { hour: 'по часам', day: 'по дням', week: 'по н�
 
 // Крупный график раскрытой плитки. Подписи оси берутся из bucketSets, значения из spark:
 // обе функции строят ось из одного источника, поэтому индексы совпадают.
-function tileDetail(tile, steps, grain, now) {
+function tileDetail(tile, detailId, steps, grain, now) {
   if (tile.total === 0) {
-    return '<div class="stats-tile-detail"><p class="stats-block-empty">За этот период подходов нет</p></div>';
+    return `<div class="stats-tile-detail" id="${detailId}"><p class="stats-block-empty">За этот период подходов нет</p></div>`;
   }
   // Цель дневная: на часовом и недельном шаге она сравнивалась бы с чужими по
   // масштабу суммами, а входя в масштаб, сплющила бы столбики. Там линии нет вовсе,
   // и в подписи для скринридера о цели тоже ни слова.
-  const target = grain === 'day' ? targetOf(tile) : null;
+  const target = grain === 'day' ? tile.target : null;
   const chart = barChart({
     steps,
     values: tile.spark,
@@ -270,7 +278,7 @@ function tileDetail(tile, steps, grain, now) {
     ariaFor: (peak) => `${escapeHtml(tile.name)}, ${BY_STEP[grain]}: всего ${quantity(tile.total, tile.unit)}, больше всего ${quantity(peak, tile.unit)} за ${CHART_STEP[grain]}${target === null ? '' : `, цель ${target}`}`,
     titleFor: (stepName, value) => `${stepName}: ${quantity(value, tile.unit)}`
   });
-  return `<div class="stats-tile-detail">${chart}</div>`;
+  return `<div class="stats-tile-detail" id="${detailId}">${chart}</div>`;
 }
 
 // Плитка это кнопка с data-stats-tile и aria-expanded внутри статьи. Раскрытие
@@ -280,13 +288,18 @@ function exerciseTile(tile, steps, range, now) {
   const id = String(tile.id);
   const expanded = id === expandedId;
   const unit = tile.unit === 'seconds' ? 'сек.' : 'раз';
-  const head = `<button class="stats-tile-toggle" type="button" data-stats-tile="${escapeHtml(id)}" aria-expanded="${expanded}">`
+  // aria-controls называет то, что раскрывается: без него скринридер говорит
+  // «развёрнуто», но не говорит, что именно. Идентификатор упражнения состоит из
+  // латиницы, цифр и дефисов, так что ссылаться на блок по нему можно. У свёрнутой
+  // плитки блока нет вовсе, и атрибут указывал бы в пустоту — поэтому его там нет.
+  const detailId = `stats-tile-detail-${escapeHtml(id)}`;
+  const head = `<button class="stats-tile-toggle" type="button" data-stats-tile="${escapeHtml(id)}" aria-expanded="${expanded}"${expanded ? ` aria-controls="${detailId}"` : ''}>`
     + `<span class="stats-tile-top"><span class="stats-tile-name">${escapeHtml(tile.name)}</span>${deltaBadge(tile)}</span>`
     + `<span class="stats-tile-total"><strong>${tile.total}</strong><span class="stats-tile-unit">${unit}</span></span>`
     // В раскрытой плитке спарклайн заменяет крупный график.
     + (expanded ? '' : sparkline(tile.spark))
     + `<span class="stats-tile-goal">${goalCaption(tile)}</span></button>`;
-  return `<article class="stats-tile${expanded ? ' is-expanded' : ''}">${head}${expanded ? tileDetail(tile, steps, range.grain, now) : ''}</article>`;
+  return `<article class="stats-tile${expanded ? ' is-expanded' : ''}">${head}${expanded ? tileDetail(tile, detailId, steps, range.grain, now) : ''}</article>`;
 }
 
 function exerciseTiles(log, exercises, range, now) {
@@ -352,7 +365,7 @@ export function renderStats(state) {
   paint(view, statsHeader(periodSwitcher()) + metricRow(summary) + setsChart(log, range, summary, now) + regularityCalendar(log, now) + exerciseTiles(log, state.exercises || [], range, now));
 }
 
-export function bindStats({ getState, rerender }) {
+export function bindStats({ rerender }) {
   document.addEventListener('click', (event) => {
     const tile = event.target.closest('[data-stats-tile]');
     if (tile) {

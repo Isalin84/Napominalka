@@ -81,6 +81,8 @@ export function periodRange(period, now, log = []) {
     };
   }
 
+  // Сюда же попадает неизвестный период: «всё время» — самый безобидный ответ,
+  // экран покажет лишнее, но не соврёт и не упадёт.
   const earliest = earliestEntry(log);
   const first = earliest ? startOfDay(earliest) : today;
   // Запись из будущего (сбитые часы) не должна переворачивать диапазон.
@@ -230,6 +232,9 @@ export function byExercise(log, exercises, range) {
   const { steps, keyOf } = bucketAxis(range);
   const indexByKey = new Map(steps.map((step, index) => [step.key, index]));
   const known = new Set(list.map((exercise) => exercise?.id));
+  // Пустая плитка нужна дважды: под первую запись упражнения и под упражнение
+  // без записей вовсе. Это функция, а не значение: spark у каждой плитки свой.
+  const emptyStat = () => ({ total: 0, sets: 0, spark: steps.map(() => 0) });
 
   // Один проход по логу на оба периода. Предыдущий кончается раньше начала
   // текущего (иногда с зазором из-за обрезки), поэтому запись в зазоре не
@@ -249,7 +254,7 @@ export function byExercise(log, exercises, range) {
 
   const stats = new Map();
   for (const { item, date } of current) {
-    const stat = stats.get(item.exerciseId) ?? { total: 0, sets: 0, spark: steps.map(() => 0) };
+    const stat = stats.get(item.exerciseId) ?? emptyStat();
     const amount = amountOf(item);
     stat.total += amount;
     stat.sets += 1;
@@ -270,16 +275,18 @@ export function byExercise(log, exercises, range) {
   // Имя, единица и цель — из списка упражнений: в записи лежит имя на момент
   // записи, после переименования одно упражнение раздвоилось бы на две плитки.
   // Выключенное упражнение остаётся, пока у него есть записи за период.
+  // Цель уходит уже нормализованной, через тот же goalTargets, по которому
+  // считается goalDays: вид не должен решать заново, что считается целью.
   return list
     .filter((exercise) => exercise?.enabled || stats.has(exercise?.id))
     .map((exercise) => {
-      const stat = stats.get(exercise.id) ?? { total: 0, sets: 0, spark: steps.map(() => 0) };
+      const stat = stats.get(exercise.id) ?? emptyStat();
       const before = previousTotals.get(exercise.id) ?? 0;
       return {
         id: exercise.id,
         name: exercise.name,
         unit: exercise.unit,
-        target: exercise.target,
+        target: targets.get(exercise.id) ?? null,
         total: stat.total,
         sets: stat.sets,
         spark: stat.spark,
