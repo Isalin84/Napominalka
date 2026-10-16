@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  holdSeconds,
   localDayTotals,
   migrateExerciseState,
   normalizeExercises,
@@ -61,4 +62,30 @@ test('totals logs by the local calendar day', () => {
   ], day);
 
   assert.deepEqual(totals, { squats: 10, pushups: 7 });
+});
+
+test('holdSeconds takes the set size for timed exercises', () => {
+  assert.equal(holdSeconds({ unit: 'seconds', perSet: 45 }), 45);
+});
+
+test('holdSeconds gives three seconds per repetition', () => {
+  assert.equal(holdSeconds({ unit: 'reps', perSet: 12 }), 36);
+});
+
+test('holdSeconds clamps short sets to the lower bound', () => {
+  assert.equal(holdSeconds({ unit: 'reps', perSet: 5 }), 20);
+  assert.equal(holdSeconds({ unit: 'seconds', perSet: 10 }), 20);
+});
+
+test('holdSeconds clamps long sets to the upper bound', () => {
+  assert.equal(holdSeconds({ unit: 'reps', perSet: 100000 }), 300);
+  assert.equal(holdSeconds({ unit: 'seconds', perSet: 4000 }), 300);
+});
+
+test('holdSeconds falls back to the lower bound on unusable input', () => {
+  assert.equal(holdSeconds(null), 20);
+  assert.equal(holdSeconds({}), 20);
+  assert.equal(holdSeconds({ unit: 'reps', perSet: 'много' }), 20);
+  assert.equal(holdSeconds({ unit: 'reps', perSet: -4 }), 20);
+  assert.equal(holdSeconds({ unit: 'reps', perSet: 0 }), 20);
 });
