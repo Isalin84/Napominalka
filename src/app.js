@@ -204,6 +204,7 @@ function renderPreferences() {
     <div class="preference-row"><div class="preference-copy"><div class="preference-icon">${icon('volume', 15)}</div><div><div class="preference-title">Громкость</div><div class="preference-description">Можно сделать тише или громче.</div></div></div><div class="range-wrap"><input type="range" min="0" max="100" value="${Math.round(state.volume * 100)}" data-volume aria-label="Громкость" /><span class="range-value">${Math.round(state.volume * 100)}%</span></div></div>
     <div class="preference-row"><div class="preference-copy"><div class="preference-icon">${icon('snooze', 15)}</div><div><div class="preference-title">Кнопка «Отложить»</div><div class="preference-description">На сколько сдвигать напоминание.</div></div></div><select class="select-control" data-snooze aria-label="Отложить на">${snoozeOptions.map((value) => `<option value="${value}" ${Number(state.snoozeMinutes) === value ? 'selected' : ''}>${pluralize(value, 'минуту', 'минуты', 'минут')}</option>`).join('')}</select></div>
     <div class="preference-row"><div class="preference-copy"><div class="preference-icon">${icon('spark', 15)}</div><div><div class="preference-title">Запускать при входе в систему</div><div class="preference-description">Работает только в установленном приложении.</div></div></div><button class="toggle ${state.autostart ? 'is-on' : ''}" data-autostart-toggle aria-label="Переключить автозапуск"></button></div>
+    <div class="preference-row"><div class="preference-copy"><div class="preference-icon">${icon('movement', 15)}</div><div><div class="preference-title">Не отпускать, пока не размялся</div><div class="preference-description">Окно разминки держит фокус, пока не пройдёт время подхода. Чтобы отложить, удерживайте Esc.</div></div></div><button class="toggle ${state.hardMode?.enabled ? 'is-on' : ''}" data-hard-mode-toggle aria-label="Переключить жёсткий режим"></button></div>
     <div class="preference-divider"><p class="eyebrow">ТИХИЕ ЧАСЫ</p>
       <div class="preference-row"><div class="preference-copy"><div class="preference-icon">${icon('clock', 15)}</div><div><div class="preference-title">Не тревожить</div><div class="preference-description">В это время питомец не появится.</div></div></div><button class="toggle ${state.quietHours.enabled ? 'is-on' : ''}" data-quiet-toggle aria-label="Переключить тихие часы"></button></div>
       <div class="quiet-form"><span class="preference-hint">с</span><input class="time-control" type="time" value="${state.quietHours.from}" data-quiet-from aria-label="Начало тихих часов" /><span class="preference-hint">до</span><input class="time-control" type="time" value="${state.quietHours.to}" data-quiet-to aria-label="Конец тихих часов" /></div>
@@ -361,6 +362,13 @@ function bindEvents() {
     if (event.target.closest('[data-autostart-toggle]')) {
       state.autostart = !state.autostart;
       return saveAndRender(state.autostart ? 'Приложение будет запускаться при входе.' : 'Автозапуск выключен.');
+    }
+
+    if (event.target.closest('[data-hard-mode-toggle]')) {
+      state.hardMode = { ...state.hardMode, enabled: !state.hardMode?.enabled };
+      return saveAndRender(state.hardMode.enabled
+        ? 'Окно разминки будет держать фокус.'
+        : 'Окно разминки отпускает как раньше.');
     }
 
     if (event.target.closest('[data-quiet-toggle]')) {
