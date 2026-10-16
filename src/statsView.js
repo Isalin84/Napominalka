@@ -24,12 +24,12 @@ const PERIODS = [
 ];
 
 // Прошлый период называется словами, по одному набору на период. «К прошлому
-// периоду» — язык кода: вчера, прошлая неделя и прошлый месяц звучат по-разному.
+// периоду» звучит как язык кода: вчера, прошлая неделя и прошлый месяц разные.
 // У «Всего времени» прошлого периода нет, поэтому его здесь и не ищут.
 const PREVIOUS_PERIOD = {
-  day: { delta: 'ко вчерашнему дню', same: 'столько же, сколько вчера' },
-  week: { delta: 'к прошлой неделе', same: 'столько же, сколько на прошлой неделе' },
-  month: { delta: 'к прошлому месяцу', same: 'столько же, сколько в прошлом месяце' }
+  day: { delta: 'к этому времени вчера', same: 'столько же, сколько вчера к этому времени' },
+  week: { delta: 'к тем же дням прошлой недели', same: 'столько же, сколько за те же дни прошлой недели' },
+  month: { delta: 'к тем же дням прошлого месяца', same: 'столько же, сколько за те же дни прошлого месяца' }
 };
 
 function periodSwitcher() {
@@ -61,12 +61,12 @@ function metricRow(summary) {
   const cards = [
     metricCard({ label: 'Подходов', value: summary.sets, caption: deltaCaption(summary.deltaSets) }),
     metricCard({ label: 'Дней с занятиями', value: summary.activeDays, unit: `из ${summary.totalDays}` }),
-    metricCard({ label: 'Подряд', value: summary.streak, unit: plural(summary.streak, 'день', 'дня', 'дней') }),
+    metricCard({ label: 'Без пропусков', value: summary.streak, unit: plural(summary.streak, 'день', 'дня', 'дней') }),
     metricCard({
       label: 'Цели закрыты',
       value: summary.goalsHit,
       unit: `из ${summary.goalsPossible}`,
-      caption: 'из упражнений, за которые брались'
+      caption: 'среди упражнений, за которые брались'
     })
   ];
   return `<section class="stats-metric-grid" aria-label="Итоги за период">${cards.join('')}</section>`;
@@ -85,7 +85,7 @@ const CHART_STEP = { hour: 'час', day: 'день', week: 'неделю' };
 
 const setsWord = (count) => plural(count, 'подход', 'подхода', 'подходов');
 
-// Какой столбик «сейчас». У недельного шага ключ — понедельник, и с сегодняшним
+// Какой столбик «сейчас». У недельного шага ключ это понедельник, и с сегодняшним
 // днём он совпал бы раз в неделю, поэтому берётся последний: диапазон всегда
 // кончается сегодняшним днём, значит, в последнем шаге он и лежит.
 function currentBarIndex(bars, grain, now) {
@@ -179,7 +179,7 @@ function dayLevel(sets) {
 function calendarCell(day, todayKey) {
   const date = shortDate(day.key);
   if (day.inFuture) {
-    return `<td class="stats-day is-future"><span class="sr-only">${date}: ещё не наступил</span></td>`;
+    return `<td class="stats-day is-future"><span class="sr-only">${date}, день ещё не наступил</span></td>`;
   }
   const today = day.key === todayKey ? ' is-today' : '';
   // Число в клетке нужно тем, кто не различает оттенки; пустая клетка остаётся пустой.
@@ -196,7 +196,7 @@ function regularityCalendar(log, now) {
   const rows = weeks
     .map((week) => `<tr><th scope="row">${shortDate(week[0].key)}</th>${week.map((day) => calendarCell(day, todayKey)).join('')}</tr>`)
     .join('');
-  return `<section class="stats-block"><h2 class="stats-block-title">Регулярность</h2><p class="stats-block-note">Последние пять недель, подходов в день</p><table class="stats-calendar"><thead><tr><th scope="col"><span class="sr-only">Неделя с</span></th>${head}</tr></thead><tbody>${rows}</tbody></table></section>`;
+  return `<section class="stats-block"><h2 class="stats-block-title">Регулярность</h2><p class="stats-block-note">Подходов в день за последние пять недель</p><table class="stats-calendar"><thead><tr><th scope="col"><span class="sr-only">Неделя с</span></th>${head}</tr></thead><tbody>${rows}</tbody></table></section>`;
 }
 
 // Спарклайн плитки в единицах viewBox: ширина резиновая (preserveAspectRatio="none"),
@@ -221,7 +221,7 @@ function sparkline(values) {
 // а скринридер читает полную подпись с прошлым периодом.
 function deltaBadge(tile) {
   const labels = PREVIOUS_PERIOD[period];
-  // Нулевой итог — нечего сравнивать. У «Всего времени» прошлого периода нет вовсе,
+  // При нулевом итоге сравнивать нечего. У «Всего времени» прошлого периода нет вовсе,
   // и «новое» там было бы неправдой: оно значило бы «в прошлый раз этого не было».
   if (tile.total === 0 || !labels) return '';
   if (tile.deltaPercent === null) return '<span class="stats-delta is-new">новое</span>';
@@ -251,7 +251,7 @@ function goalCaption(tile) {
 
 const BY_STEP = { hour: 'по часам', day: 'по дням', week: 'по неделям' };
 
-// Крупный график раскрытой плитки. Подписи оси — из bucketSets, значения — из spark:
+// Крупный график раскрытой плитки. Подписи оси берутся из bucketSets, значения из spark:
 // обе функции строят ось из одного источника, поэтому индексы совпадают.
 function tileDetail(tile, steps, grain, now) {
   if (tile.total === 0) {
@@ -273,7 +273,7 @@ function tileDetail(tile, steps, grain, now) {
   return `<div class="stats-tile-detail">${chart}</div>`;
 }
 
-// Плитка — кнопка с data-stats-tile и aria-expanded внутри статьи. Раскрытие
+// Плитка это кнопка с data-stats-tile и aria-expanded внутри статьи. Раскрытие
 // хранится в aria-expanded и классе, а не в data-*: paint опознаёт элемент по
 // всем его data-* сразу, и изменчивый атрибут оставил бы фокус без адресата.
 function exerciseTile(tile, steps, range, now) {
@@ -293,7 +293,7 @@ function exerciseTiles(log, exercises, range, now) {
   const tiles = byExercise(log, exercises, range);
   if (!tiles.length) return '';
   const steps = bucketSets(log, range);
-  return `<section class="stats-tiles"><h2 class="stats-block-title">Упражнения</h2><p class="stats-block-note">Нажмите на плитку, чтобы увидеть график по шагам периода</p><div class="stats-tile-grid">${tiles.map((tile) => exerciseTile(tile, steps, range, now)).join('')}</div></section>`;
+  return `<section class="stats-tiles"><h2 class="stats-block-title">Упражнения</h2><p class="stats-block-note">Нажмите на упражнение, чтобы увидеть его график</p><div class="stats-tile-grid">${tiles.map((tile) => exerciseTile(tile, steps, range, now)).join('')}</div></section>`;
 }
 
 // Значение атрибута внутри селектора: в кавычках экранируются только сами
@@ -339,7 +339,7 @@ export function renderStats(state) {
   if (!log.length) {
     // Пустые оси, нули и карточки не рисуем, но название раздела остаётся:
     // вкладка с одной серой строкой выглядит сломанной, а не пустой.
-    paint(view, `${statsHeader()}<div class="empty-state">Здесь появится статистика, когда наберутся первые подходы.</div>`);
+    paint(view, `${statsHeader()}<div class="empty-state">Запишите первый подход, и здесь появится статистика.</div>`);
     return;
   }
 
