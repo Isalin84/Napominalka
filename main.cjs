@@ -1,7 +1,8 @@
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { activeExercises, migrateExerciseState, validateAmount } = require('./lib/exercises.cjs');
+const { activeExercises, migrateExerciseState, validateAmount, holdSeconds: calculateHoldSeconds } = require('./lib/exercises.cjs');
+const { gateFor, isSatisfied } = require('./lib/confirmation.cjs');
 
 let mainWindow;
 let popupWindow;
@@ -17,6 +18,8 @@ const APP_NAME = 'Напоминалка';
 const DEVELOPER_URL = 'https://bestpracticeai.ru/';
 const TICK_MS = 15000;
 const POPUP_AUTO_SNOOZE_MS = 5 * 60 * 1000;
+const HARD_AUTO_SNOOZE_MS = 15 * 60 * 1000;
+const REFOCUS_DELAY_MS = 400;
 const HISTORY_LIMIT = 5000;
 
 app.setName(APP_NAME);
@@ -32,6 +35,7 @@ function createDefaultState() {
     snoozeMinutes: 10,
     popupPosition: null,
     quietHours: { enabled: true, from: '22:00', to: '07:00' },
+    hardMode: { enabled: false, confirmBy: 'timer' },
     reminders: {
       water: {
         enabled: true,
@@ -85,6 +89,10 @@ function mergeState(saved) {
     ...base,
     ...saved,
     quietHours: { ...base.quietHours, ...(saved.quietHours || {}) },
+    // confirmBy зарезервировано под подтверждение по пульсу. Пока способ один,
+    // и любое прочитанное значение приводится к нему: чужое значение в файле
+    // не должно заблокировать кнопку навсегда.
+    hardMode: { enabled: Boolean(saved.hardMode?.enabled), confirmBy: 'timer' },
     reminders: {
       ...base.reminders,
       ...(saved.reminders || {}),
@@ -253,6 +261,13 @@ function rememberPopupPosition() {
   }, 220);
 }
 
+// Спрашивается каждый раз, а не кешируется флагом: человек может выключить
+// жёсткий режим в главном окне, пока попап висит, и тот обязан отпустить сразу.
+function hardPopupActive() {
+  if (!activePopupPayload) return false;
+  return gateFor(activePopupPayload, state).kind !== 'none';
+}
+
 function createPopupWindow(payload) {
   if (!popupWindow) {
     popupWindow = new BrowserWindow({
@@ -286,6 +301,18 @@ function createPopupWindow(payload) {
     popupWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     popupWindow.webContents.on('will-navigate', (event) => event.preventDefault());
     popupWindow.on('move', rememberPopupPosition);
+    popupWindow.on('blur', () => {
+      if (!hardPopupActive()) return;
+      setTimeout(() => {
+        if (!hardPopupActive()) return;
+        if (!popupWindow || popupWindow.isDestroyed() || !popupWindow.isVisible()) return;
+        // Фокус у нашего же окна отнимать нельзя: иначе открытые из трея
+        // настройки закроются, и выключить жёсткий режим будет негде.
+        if (BrowserWindow.getFocusedWindow()) return;
+        if (process.platform === 'darwin') app.focus({ steal: true });
+        popupWindow.focus();
+      }, REFOCUS_DELAY_MS);
+    });
     popupWindow.on('closed', () => {
       clearTimeout(popupMoveSaveTimer);
       clearTimeout(popupAutoSnoozeTimer);
@@ -299,10 +326,19 @@ function createPopupWindow(payload) {
     if (activePopupPayload?.id !== payload.id) return;
     popupWindow.webContents.send('popup:reminder', payload);
     positionPopup();
-    // showInactive намеренно: напоминание не должно выдёргивать курсор из работы.
-    popupWindow.showInactive();
+    // Окно создаётся один раз и переиспользуется. Свойства выставляются при
+    // каждом показе, иначе жёсткий слой утечёт в следующее напоминание о воде.
+    const hard = hardPopupActive();
+    popupWindow.setAlwaysOnTop(true, hard ? 'screen-saver' : 'floating');
+    if (hard) {
+      if (process.platform === 'darwin') app.focus({ steal: true });
+      popupWindow.show();
+    } else {
+      // showInactive намеренно: напоминание не должно выдёргивать курсор из работы.
+      popupWindow.showInactive();
+    }
     clearTimeout(popupAutoSnoozeTimer);
-    popupAutoSnoozeTimer = setTimeout(() => snoozeReminder(payload), POPUP_AUTO_SNOOZE_MS);
+    popupAutoSnoozeTimer = setTimeout(() => snoozeReminder(payload), hard ? HARD_AUTO_SNOOZE_MS : POPUP_AUTO_SNOOZE_MS);
   };
 
   if (popupWindow.webContents.isLoading()) {
@@ -365,7 +401,10 @@ function buildPayload(key) {
   const amount = exercise
     ? `${suggestedAmount} ${exercise.unit === 'seconds' ? 'сек' : 'раз'}`
     : undefined;
+  const hardMode = Boolean(state.hardMode.enabled && exercise);
   return {
+    hardMode,
+    ...(hardMode ? { holdSeconds: calculateHoldSeconds(exercise) } : {}),
     id: `${key}-${Date.now()}`,
     key,
     type,
@@ -428,6 +467,9 @@ function recordCompletion(payload) {
   if (!payload || !activePopupPayload || payload.id !== activePopupPayload.id || payload.key !== activePopupPayload.key) {
     return false;
   }
+  // Зависший отсчёт в окне не должен записывать подход, которого не было.
+  const elapsedMs = Date.now() - new Date(activePopupPayload.createdAt).getTime();
+  if (!isSatisfied(gateFor(activePopupPayload, state), { elapsedMs })) return false;
   const completion = activePopupPayload;
   if (state.history.some((item) => item.id === completion.id)) return false;
   const completedAt = new Date().toISOString();
@@ -581,7 +623,9 @@ function registerIpc() {
   ipcMain.on('window:action', (_event, action) => {
     if (action === 'minimize' && mainWindow) mainWindow.minimize();
     if (action === 'close' && mainWindow) mainWindow.close();
-    if (action === 'popup-close') closePopup();
+    // Кнопки закрытия в попапе сейчас нет, но канал живой: первая же такая
+    // кнопка стала бы выходом мимо всех трёх предусмотренных.
+    if (action === 'popup-close' && !hardPopupActive()) closePopup();
   });
 }
 
