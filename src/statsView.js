@@ -234,8 +234,17 @@ function deltaBadge(tile) {
   return `<span class="stats-delta ${up ? 'is-up' : 'is-down'}" title="${spoken}"><span aria-hidden="true">${up ? '▲' : '▼'} ${percent}%</span><span class="sr-only">${spoken}</span></span>`;
 }
 
+// Цель есть, только если это число от единицы: так же её считает stats.js, и при
+// другом значении goalDays равен нулю не из-за невыполнения, а из-за отсутствия цели.
+function targetOf(tile) {
+  const target = Number(tile.target);
+  return Number.isFinite(target) && target >= 1 ? target : null;
+}
+
 function goalCaption(tile) {
   if (tile.activeDays === 0) return 'Подходов не было';
+  // Без цели «закрыта: 0» утверждало бы неправду: вместо этого просто число подходов.
+  if (targetOf(tile) === null) return `${tile.sets} ${setsWord(tile.sets)}`;
   // «Из» требует родительного: «из 1 дня», «из 2 дней», «из 5 дней», «из 21 дня».
   return `Цель закрыта: ${tile.goalDays} из ${pluralize(tile.activeDays, 'дня', 'дней', 'дней')}`;
 }
@@ -248,13 +257,17 @@ function tileDetail(tile, steps, grain, now) {
   if (tile.total === 0) {
     return '<div class="stats-tile-detail"><p class="stats-block-empty">За этот период подходов нет</p></div>';
   }
+  // Цель дневная: на часовом и недельном шаге она сравнивалась бы с чужими по
+  // масштабу суммами, а входя в масштаб, сплющила бы столбики. Там линии нет вовсе,
+  // и в подписи для скринридера о цели тоже ни слова.
+  const target = grain === 'day' ? targetOf(tile) : null;
   const chart = barChart({
     steps,
     values: tile.spark,
     grain,
     now,
-    target: Number(tile.target),
-    ariaFor: (peak) => `${escapeHtml(tile.name)}, ${BY_STEP[grain]}: всего ${quantity(tile.total, tile.unit)}, больше всего ${quantity(peak, tile.unit)} за ${CHART_STEP[grain]}, цель ${tile.target}`,
+    target,
+    ariaFor: (peak) => `${escapeHtml(tile.name)}, ${BY_STEP[grain]}: всего ${quantity(tile.total, tile.unit)}, больше всего ${quantity(peak, tile.unit)} за ${CHART_STEP[grain]}${target === null ? '' : `, цель ${target}`}`,
     titleFor: (stepName, value) => `${stepName}: ${quantity(value, tile.unit)}`
   });
   return `<div class="stats-tile-detail">${chart}</div>`;
