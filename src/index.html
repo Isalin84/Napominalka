@@ -30,6 +30,7 @@
             <button class="nav-item is-active" data-view="overview"><span class="nav-icon" data-nav-icon="spark"></span><span>Обзор</span></button>
             <button class="nav-item" data-view="reminders"><span class="nav-icon" data-nav-icon="bell"></span><span>Напоминания</span><span class="nav-count" id="nav-count">2</span></button>
             <button class="nav-item" data-view="exercises"><span class="nav-icon" data-nav-icon="movement"></span><span>Упражнения</span></button>
+            <button class="nav-item" data-view="stats"><span class="nav-icon" data-nav-icon="chart"></span><span>Статистика</span></button>
             <button class="nav-item" data-view="history"><span class="nav-icon" data-nav-icon="history"></span><span>История</span></button>
             <button class="nav-item" data-view="settings"><span class="nav-icon" data-nav-icon="settings"></span><span>Настройки</span></button>
           </nav>
@@ -115,6 +116,8 @@
             <div id="exercise-list" class="exercise-grid"></div>
             <section class="panel exercise-journal"><div class="panel-heading"><div><h2 class="panel-title">Подходы за сегодня</h2><p class="panel-copy">Ошибочную запись можно отменить.</p></div><span id="exercise-day-label" class="panel-badge"></span></div><div id="exercise-log"></div></section>
           </section>
+
+          <section class="view" id="view-stats" data-view-panel="stats"></section>
 
           <section class="view" id="view-history" data-view-panel="history">
             <header class="page-header compact-header"><div><p class="eyebrow">ИСТОРИЯ</p><h1>Отмеченные паузы</h1><p class="page-lede">Всё, что отмечено. Хранится только на этом компьютере.</p></div><div class="streak-pill"><strong id="history-today-count">0</strong><span id="history-today-unit">пауз сегодня</span></div></header>
