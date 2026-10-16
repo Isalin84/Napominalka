@@ -61,3 +61,7 @@
 .popup-amount[hidden] { display:none; }
 .popup-amount input { width:72px;min-width:0;padding:6px 8px;border:1px solid #A2A8B1;border-radius:3px;background:#fff;color:#0B1D3A;font-size:14px;-webkit-app-region:no-drag; }
 .popup-shell.is-complete .popup-complete { color:#fff;background:#1F6F5C; }
+.popup-complete:disabled,.popup-complete:disabled:hover { color:#5E687C;background:#E8E3D6;cursor:default; }
+.popup-settings[hidden] { display:none; }
+.popup-hint { margin:7px 0 0;color:#8A91A0;font-size:9px;text-align:right; }
+.popup-hint[hidden] { display:none; }

@@ -1,4 +1,4 @@
-import { plural, pluralize, formatInterval, formatNextTime, reminderText, PET_ANIMATIONS } from '../src/petRenderer.js';
+import { plural, pluralize, formatInterval, formatNextTime, formatHold, reminderText, PET_ANIMATIONS } from '../src/petRenderer.js';
 
 let fails = 0;
 const eq = (got, want, label) => {
@@ -27,6 +27,13 @@ eq(formatNextTime(io(60)), 'через 1 час', '1 час');
 eq(formatNextTime(io(120)), 'через 2 часа', '2 часа');
 eq(formatNextTime(io(300)), 'через 5 часов', '5 часов');
 eq(formatNextTime(null), 'когда включишь', 'выключено');
+
+console.log('\n— отсчёт удержания —');
+eq(formatHold(36), '0:36', '36 сек');
+eq(formatHold(5), '0:05', '5 сек');
+eq(formatHold(60), '1:00', '60 сек');
+eq(formatHold(300), '5:00', '300 сек');
+eq(formatHold(0), '0:00', 'ноль');
 
 console.log('\n— склонения —');
 eq(pluralize(1, 'пауза', 'паузы', 'пауз'), '1 пауза', '1');

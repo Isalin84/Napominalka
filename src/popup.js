@@ -1,12 +1,45 @@
-import { pet, petSprite, setPetAnimation, startPetAnimations, reminderText, icon } from './petRenderer.js';
+import { pet, petSprite, setPetAnimation, startPetAnimations, reminderText, icon, formatHold } from './petRenderer.js';
 
 let currentPayload;
 let activeAudio;
 let completionTimer;
 let soundTimer;
+let holdTimer;
+let hintTimer;
+let escTimer;
 let completing = false;
 
+const HINT_DELAY_MS = 5000;
+const ESC_HOLD_MS = 3000;
+
 const $ = (selector) => document.querySelector(selector);
+
+function stopHold() {
+  clearInterval(holdTimer);
+  clearTimeout(hintTimer);
+}
+
+// Отсчёт идёт от createdAt, а не от момента отрисовки: перерисованное окно
+// не должно заставлять ждать заново.
+function startHold(payload, action) {
+  const endsAt = new Date(payload.createdAt).getTime() + payload.holdSeconds * 1000;
+  const tick = () => {
+    const left = Math.ceil((endsAt - Date.now()) / 1000);
+    if (left > 0) {
+      $('#popup-complete').disabled = true;
+      $('#popup-action').textContent = `Готово через ${formatHold(left)}`;
+      return;
+    }
+    clearInterval(holdTimer);
+    $('#popup-complete').disabled = false;
+    $('#popup-action').textContent = action;
+  };
+  tick();
+  holdTimer = setInterval(tick, 1000);
+  // С задержкой намеренно: способ обхода, показанный сразу, читается
+  // как предложение им воспользоваться.
+  hintTimer = setTimeout(() => { $('#popup-hint').hidden = false; }, HINT_DELAY_MS);
+}
 
 function stopSound() {
   if (!activeAudio) return;
@@ -25,6 +58,7 @@ function playSound(petId, volume = 0.65) {
 function render(payload) {
   clearTimeout(completionTimer);
   clearTimeout(soundTimer);
+  stopHold();
   stopSound();
   completing = false;
   $('#popup-complete').disabled = false;
@@ -46,6 +80,12 @@ function render(payload) {
   $('#popup-amount').value = payload.suggestedAmount || 10;
   $('#popup-unit').textContent = payload.unit === 'seconds' ? 'сек.' : 'раз';
   if (trackAmount) $('#popup-action').textContent = 'Записать';
+  // Шестерёнка открывает настройки и закрывает попап, то есть в жёстком режиме
+  // это выход мимо отсрочки. Прячется и возвращается при каждой отрисовке:
+  // окно переиспользуется между напоминаниями.
+  $('#popup-settings').hidden = Boolean(payload.hardMode);
+  $('#popup-hint').hidden = true;
+  if (payload.hardMode) startHold(payload, $('#popup-action').textContent);
   soundTimer = setTimeout(() => playSound(payload.petId, payload.volume), 140);
 }
 
@@ -59,6 +99,7 @@ $('#popup-complete').addEventListener('click', () => {
   completing = true;
   $('#popup-complete').disabled = true;
   $('#popup-snooze').disabled = true;
+  stopHold();
   stopSound();
   $('#popup-shell').classList.add('is-complete');
   setPetAnimation($('#popup-pet .pet-sprite'), 'jumping');
@@ -77,6 +118,30 @@ $('#popup-settings').addEventListener('click', () => {
   stopSound();
   window.desktopApi.openSettings();
 });
+
+// Esc с удержанием: в жёстком режиме это основной способ отложить, и работает
+// он надёжно именно потому, что окно само держит фокус.
+const cancelEsc = () => {
+  clearTimeout(escTimer);
+  escTimer = undefined;
+};
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || event.repeat || escTimer) return;
+  escTimer = setTimeout(() => {
+    escTimer = undefined;
+    if (completing || !currentPayload) return;
+    stopHold();
+    stopSound();
+    window.desktopApi.snoozePopup(currentPayload);
+  }, ESC_HOLD_MS);
+});
+
+document.addEventListener('keyup', (event) => {
+  if (event.key === 'Escape') cancelEsc();
+});
+
+window.addEventListener('blur', cancelEsc);
 
 $('#popup-settings').innerHTML = icon('settings', 15);
 window.desktopApi.onPopupReminder(render);

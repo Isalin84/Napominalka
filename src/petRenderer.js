@@ -174,6 +174,11 @@ export function formatNextTime(nextAt) {
   return `через ${pluralize(hours, 'час', 'часа', 'часов')}`;
 }
 
+export function formatHold(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
 // Тексты напоминаний живут рядом с интерфейсом, а не в главном процессе,
 // чтобы имя питомца и его род не приходилось дублировать в двух местах.
 export function reminderText(payload = {}) {
