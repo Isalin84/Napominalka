@@ -103,15 +103,71 @@ function animationFrame(element, now, reducedMotion) {
   element.style.backgroundPosition = `${x}% ${y}%`;
 }
 
-export function startPetAnimations() {
+// Самый короткий кадр в PET_ANIMATIONS длится около 58 мс. Будить страницу
+// чаще незачем: раньше цикл крутился 60 раз в секунду и грузил процессор,
+// даже когда окно было спрятано в трей.
+const FRAME_INTERVAL_MS = 55;
+
+// pauseWhenUnfocused: главное окно замирает, как только пользователь ушёл
+// в другую программу. Окно напоминания анимируется всё время, пока его видно.
+export function startPetAnimations({ pauseWhenUnfocused = false } = {}) {
   if (animationLoopStarted) return;
   animationLoopStarted = true;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const tick = (now) => {
-    document.querySelectorAll('.pet-sprite').forEach((element) => animationFrame(element, now, reducedMotion.matches));
-    window.requestAnimationFrame(tick);
+  let shownByMain = true;
+  let timer = null;
+  let sprites = [];
+  let spritesDirty = true;
+
+  const drawFrame = () => {
+    if (spritesDirty) {
+      sprites = Array.from(document.querySelectorAll('.pet-sprite'));
+      spritesDirty = false;
+    }
+    const now = performance.now();
+    sprites.forEach((element) => animationFrame(element, now, reducedMotion.matches));
   };
-  window.requestAnimationFrame(tick);
+
+  const shouldAnimate = () => shownByMain
+    && !document.hidden
+    && !reducedMotion.matches
+    && (!pauseWhenUnfocused || document.hasFocus());
+
+  const tick = () => {
+    timer = null;
+    drawFrame();
+    if (shouldAnimate()) timer = setTimeout(tick, FRAME_INTERVAL_MS);
+  };
+
+  const update = () => {
+    if (shouldAnimate()) {
+      if (!timer) tick();
+    } else {
+      clearTimeout(timer);
+      timer = null;
+      // Остановленный питомец всё равно должен стоять в позе своего состояния.
+      drawFrame();
+    }
+  };
+
+  // Новые спрайты появляются при перерисовке экрана. На паузе им нужен один кадр,
+  // иначе питомец покажется в чужой позе.
+  new MutationObserver(() => {
+    spritesDirty = true;
+    if (!timer) drawFrame();
+  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-pet-state'] });
+
+  document.addEventListener('visibilitychange', update);
+  window.addEventListener('focus', update);
+  window.addEventListener('blur', update);
+  reducedMotion.addEventListener('change', update);
+  // На macOS окно, спрятанное в трей, не всегда получает document.hidden,
+  // поэтому основной процесс сам сообщает, видно ли окно.
+  window.desktopApi?.onAnimationState?.((visible) => {
+    shownByMain = Boolean(visible);
+    update();
+  });
+  update();
 }
 
 export function icon(name, size = 18) {

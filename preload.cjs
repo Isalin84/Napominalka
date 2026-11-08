@@ -27,6 +27,11 @@ contextBridge.exposeInMainWorld('desktopApi', {
     ipcRenderer.on('app:navigate', listener);
     return () => ipcRenderer.removeListener('app:navigate', listener);
   },
+  onAnimationState: (callback) => {
+    const listener = (_event, visible) => callback(visible);
+    ipcRenderer.on('app:animations', listener);
+    return () => ipcRenderer.removeListener('app:animations', listener);
+  },
   onPopupReminder: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('popup:reminder', listener);

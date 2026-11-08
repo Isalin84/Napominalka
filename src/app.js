@@ -429,7 +429,7 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
-  startPetAnimations();
+  startPetAnimations({ pauseWhenUnfocused: true });
   state = await api.getState();
   bindExercises({getState: () => state, save: saveAndRender, acceptState: next => {state=next; renderApp();}, toast: showToast, api});
   bindStats({rerender: renderApp});

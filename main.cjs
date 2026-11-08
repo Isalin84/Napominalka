@@ -154,6 +154,17 @@ function applyAutostart() {
   }
 }
 
+// Сообщает странице, видно ли окно. Спрятанное в трей или свёрнутое окно
+// останавливает анимацию питомцев и не тратит процессор.
+function reportWindowVisibility(win) {
+  const send = () => {
+    if (win.isDestroyed()) return;
+    win.webContents.send('app:animations', win.isVisible() && !win.isMinimized());
+  };
+  for (const eventName of ['show', 'hide', 'minimize', 'restore']) win.on(eventName, send);
+  win.webContents.on('did-finish-load', send);
+}
+
 function createMainWindow() {
   const isMac = process.platform === 'darwin';
   mainWindow = new BrowserWindow({
@@ -174,6 +185,7 @@ function createMainWindow() {
     }
   });
 
+  reportWindowVisibility(mainWindow);
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith(DEVELOPER_URL)) shell.openExternal(url);
@@ -297,6 +309,7 @@ function createPopupWindow(payload) {
       // и приложение пропадает из Dock после первого же напоминания.
       popupWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
     }
+    reportWindowVisibility(popupWindow);
     popupWindow.loadFile(path.join(__dirname, 'src', 'popup.html'));
     popupWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     popupWindow.webContents.on('will-navigate', (event) => event.preventDefault());
